@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 ---fvectorise
-module Main where
+module Smallpde where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote

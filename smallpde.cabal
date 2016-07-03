@@ -63,10 +63,10 @@ source-repository this
 
 library
   -- Modules exported by the library.
-  Exposed-Modules:      Smallpde
+  Exposed-Modules:      Main
   
   -- Modules included in this library but not exported.
-  -- Other-Modules:        Smallpde.Internal
+  Other-Modules:        Smallpde
   
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
