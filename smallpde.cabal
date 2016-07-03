@@ -75,7 +75,8 @@ library
   build-depends:       base >=4 && <5,
                        template-haskell,
                        repa,
-                       deepseq
+                       deepseq,
+                       ghc-prim
   
   -- Directories containing source files.
   hs-source-dirs:      haskell/src      
@@ -92,6 +93,7 @@ Test-Suite test-smallpde
                     QuickCheck >= 2.6,
                     template-haskell,
                     repa,
-                    deepseq,                    
+                    deepseq,
+                    ghc-prim,                    
                     smallpde
   
