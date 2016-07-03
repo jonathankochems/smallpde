@@ -11,8 +11,8 @@ addons:
    - hvr-ghc
    packages:
    - cabal-install-1.20
-   - ghc-$GHCVER 
-   - happy
+   - ghc-7.8.3 
+   - happy-1.9
    - hlint
 
 before_install:
@@ -20,7 +20,6 @@ before_install:
 
 install:
   - cabal-1.20 update
-  - cabal-1.20 install hlint
   - cabal-1.20 install codecov-haskell
   - cabal-1.20 install --only-dependencies --enable-tests --enable-benchmarks
 
