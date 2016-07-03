@@ -12,8 +12,12 @@ addons:
    packages:
    - cabal-install-1.20
    - ghc-7.8.3 
-   - happy-1.9
+   - happy
    - hlint
+
+cache:
+  directories:
+  - $HOME/.cabal
 
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
