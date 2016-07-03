@@ -18,6 +18,7 @@ addons:
 cache:
   directories:
   - $HOME/.cabal
+  - $HOME/.ghc
 
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
