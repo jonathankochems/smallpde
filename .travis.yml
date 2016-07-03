@@ -1,19 +1,26 @@
 language: haskell
 ghc:
   - 7.8
-sudo: required
+sudo: false
 env:
   - GHCVER=7.8.3
 
+addons:
+ apt:
+   sources:
+   - hvr-ghc
+   packages:
+   - cabal-install-1.20
+   - ghc-$GHCVER 
+   - happy
+   - hlint
+
 before_install:
-  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
-  - travis_retry sudo apt-get update
-  - travis_retry sudo apt-get install cabal-install-1.20 ghc-$GHCVER happy
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
 
 install:
   - cabal-1.20 update
-  - travis_retry sudo apt-get -q -y install hlint || cabal-1.20 install hlint
+  - cabal-1.20 install hlint
   - cabal-1.20 install codecov-haskell
   - cabal-1.20 install --only-dependencies --enable-tests --enable-benchmarks
 
