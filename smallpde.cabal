@@ -86,7 +86,7 @@ library
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0
-  hs-source-dirs:   test, src
+  hs-source-dirs:   haskell/test, haskell/src
   main-is:          Spec.hs
   build-depends:    base,
                     hspec >= 1.3,

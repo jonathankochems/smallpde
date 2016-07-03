@@ -9,4 +9,4 @@ spec :: Spec
 spec = 
   describe "someFunction" $ 
     it "should work fine" $ 
-      True `shouldBe` False
+      True `shouldBe` True
