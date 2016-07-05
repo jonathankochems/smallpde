@@ -13,10 +13,10 @@ name:                smallpde
 version:             0.1.0.0
 
 -- A short (one-line) description of the package.
---synopsis:            TODO: write synopsis
+synopsis:            Small PDE solver.
 
 -- A longer description of the package.
---description:        TODO: write description
+description:        Small PDE solver.
 
 -- URL for the project homepage or repository.
 homepage:            https://github.com/jonathankochems/smallpde
@@ -37,7 +37,7 @@ maintainer:          Jonathan Kochems <jonathan.kochems@gmail.com>
 -- A copyright notice.
 -- copyright:           
 
---category:            TODO: pick category
+category:            Math
 
 build-type:          Simple
 
