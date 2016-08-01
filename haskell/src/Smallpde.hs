@@ -11,7 +11,7 @@ import Control.DeepSeq
 import GHC.Prim
 
 import Data.Array.Repa (ix2,fromFunction,DIM2,D,Array,(!)
-                       , computeUnboxedP, computeUnboxedS,U(..),(+^))
+                       , computeUnboxedP, computeUnboxedS,U(..),(+^),unsafeIndex)
 import Data.Array.Repa.Index ((:.)(..),Z(..))
 import Data.Array.Repa.Stencil  (Boundary(..))
 import Data.Array.Repa.Stencil.Dim2  (stencil2,makeStencil2,mapStencil2)
@@ -20,9 +20,18 @@ import qualified Data.Array.Repa.Stencil                  as A
 import qualified Data.Array.Repa.Stencil.Dim2             as A
 import qualified Data.Array.Repa.Shape                    as S
 
+import Control.Exception (bracket_)
+import Debug.Trace (traceEventIO)
+
 import Numeric
 
 type RealT = Float
+
+{-# INLINE event #-}
+event :: String -> IO a -> IO a
+event label =
+  bracket_ (traceEventIO $ "START " ++ label)
+           (traceEventIO $ "STOP "  ++ label)
 
 dirichlet !steps !size !arr = go steps arr 
   where go  0 !arr = return arr
@@ -49,30 +58,27 @@ dirichlet !steps !size !arr = go steps arr
         computeUnboxedSM !x = return (computeUnboxedS x)
         {-# INLINE dirichlet' #-}                       
         dirichlet' :: Array U DIM2 RealT -> IO (Array U DIM2 RealT)
-        -- dirichlet' a = computeUnboxedSM $ A.szipWith (+) a $ A.smap (*d) $ mapStencil2 (BoundConst 0) stencil a
         dirichlet' a = computeUnboxedSM $ mapStencil2 (BoundConst 0) stencil' a
+        -- dirichlet' a = computeUnboxedSM $ A.szipWith (+) a $ A.smap (*d) $ mapStencil2 (BoundConst 0) stencil a
+
+solve size iteration = do let f :: DIM2 -> RealT
+                              f (Z :. x :. y) | x == y && x== size `div` 2 = 1
+                                              | otherwise                  = 0
+                              initialArray :: Array D DIM2 RealT
+                              initialArray = fromFunction (ix2 size size) f
+                              {-# INLINE computeUnboxedSM #-}
+                              computeUnboxedSM !x = return (computeUnboxedS x)
+                              
+                          !initialArray' <- {-event "initial array" $-} computeUnboxedSM initialArray    
+                          !array <- {-event "pde solve" $-} dirichlet iteration size initialArray'
+
+                          return array
 
 main = do let size      = 256-2
               iteration = 1024*5
-              f :: DIM2 -> RealT
-              f (Z :. x :. y) | x == y && x== size `div` 2 = 1
-                              | otherwise                  = 0
-              initialArray :: Array D DIM2 RealT
-              initialArray = fromFunction (ix2 size size) f
-              {-# INLINE computeUnboxedSM #-}
-              computeUnboxedSM !x = return (computeUnboxedS x)
               
-          !initialArray' <- computeUnboxedSM initialArray    
-          !array <- dirichlet iteration size initialArray'
+          !array <- {-event "pde solve" $-} solve size iteration
 
-          forM (take (size+1) $ [0..]) $ \j ->  
-            putStr $ "0" ++ " "
-          putStrLn "0"
-          forM_ (take size $ [0..]) $ \i -> do
-            putStr $ "0 "
-            forM (take size $ [0..]) $ \j ->  
-              putStr $ (showEFloat (Just 5) $ array ! (ix2 i j)) " "
-            putStrLn "0"
-          forM (take (size+1) $ [0..]) $ \j ->  
-              putStr $ "0" ++ " "
-          putStrLn "0"
+          putStr   $! concat $! [ '0':" " | j <- take (size+2) $ [0..] ]
+          putStrLn $! concat $! [ '\n' : (concat $! [ (showEFloat (Just 5) $ array `unsafeIndex` (ix2 i j)) " " | j <- take size $! [0..] ]) | i <- take size $ [0..] ]
+          putStrLn $! concat $! [ '0':" " | j <- take (size+2) $ [0..] ]

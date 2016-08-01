@@ -3,6 +3,7 @@
 ---fvectorise
 module Main where
 
-import qualified Smallpde
+--import qualified Smallpde
+import qualified SmallpdeVector
 
-main = Smallpde.main
+main = SmallpdeVector.main
