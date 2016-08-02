@@ -13,6 +13,8 @@ import Control.Monad.Primitive (PrimState)
 import Debug.Trace(traceShow)
 import Numeric (showEFloat)
 
+import Data.Primitive.SIMD (packVector, zipVector, sumVector, FloatX4)
+
 import VectorInst
 
 {-# INLINE fourIter #-} 
@@ -30,37 +32,17 @@ sixtIter !n !d !a !b !i !j = $(stencilBody 16)
     where {-# INLINE pureStencil #-} 
           pureStencil = pureStencil' d 
 
-
-tester :: IO ()
-tester = do b <- VU.thaw $ VU.fromList [if x == 12 then 1 else 0 | x <- [0..25]]
-            a <- VU.thaw $ VU.fromList [ 0 | x <- [0..25] ]
-            vectorStencil a b 5 1 1
-            vectorStencil a b 5 2 1
-            vectorStencil a b 5 3 1
-            vectorStencil b a 5 1 1
-            vectorStencil b a 5 2 1
-            vectorStencil b a 5 3 1
-            vectorStencil a b 5 1 1
-            vectorStencil a b 5 2 1
-            vectorStencil a b 5 3 1
-            forM_ [0..5-1] $! \(!i) -> do
-             !liness <- forM [0..5-1] $! \(!j) -> do
-                          !num <- VGM.unsafeRead a (5*i+j) 
-                          return $! showEFloat(Just 5) num " " 
-             putStrLn $ concat liness
-  where vectorStencil a b n i j = $(stencilBody 3)
-        d     = 0.0625
-        pureStencil = pureStencil' d 
-
-
-
 when True  m = m
 when False _ = return ()
 
 {-# INLINE pureStencil' #-}
-pureStencil' :: Float -> Float -> Float -> Float -> Float -> Float -> Float
+--pureStencil' :: Float -> Float -> Float -> Float -> Float -> Float -> Float
 pureStencil' !d !here !east !north !west !south = 
-  (1-4*d) * here + d*( north + east + west + south )
+  (1-4*d) * here + d*( north+east+west+south )
+    --where v :: FloatX4 
+          --v = packVector (north,east,west,south)
+          --s :: Float
+          --s = sumVector $ v + v 
 
 {-# INLINE solve #-}
 solve :: Int -> Int -> IO (VU.MVector (PrimState IO) Float)
@@ -93,56 +75,28 @@ solve !n !iterations =
   where {-# INLINE onePass #-}
         onePass !n !d !a !b = go 1 1
            where go !i !j | i == n-1 = return ()
-                          | j >= n-16 && j == n-1 = go (i+1) 1
-                          | j >= n-16 && j == n-2 = do !() <- oneIter n d a b i j
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-3 = do !() <- twoIter n d a b i j
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-4 = do !() <- twoIter n d a b i j
-                                                       !() <- oneIter n d a b i (j+2)
-                                                       go (i+1) 1 
-                          | j >= n-16 && j == n-5 = do !() <- fourIter n d a b i j
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-6 = do !() <- fourIter n d a b i j
-                                                       !() <- oneIter n d a b i (j+4)
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-7 = do !() <- fourIter n d a b i j
-                                                       !() <- twoIter n d a b i (j+4)
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-8 = do !() <- fourIter n d a b i j
-                                                       !() <- twoIter n d a b i (j+4)
-                                                       !() <- oneIter n d a b i (j+6)
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-9 = do !() <- eightIter n d a b i j
-                                                       go (i+1) 1
-                          | j >= n-16 && j == n-10 = do !() <- eightIter n d a b i j
-                                                        !() <- oneIter n d a b i (j+8)
-                                                        go (i+1) 1
-                          | j >= n-16 && j == n-11 = do !() <- eightIter n d a b i j
-                                                        !() <- twoIter n d a b i (j+8)
-                                                        go (i+1) 1
-                          | j >= n-16 && j == n-12 = do !() <- eightIter n d a b i j
-                                                        !() <- twoIter n d a b i (j+8)
-                                                        !() <- oneIter n d a b i (j+10)
-                                                        go (i+1) 1 
-                          | j >= n-16 && j == n-13 = do !() <- eightIter n d a b i j
-                                                        !() <- fourIter n d a b i (j+8)
-                                                        go (i+1) 1
-                          | j >= n-16 && j == n-14 = do !() <- eightIter n d a b i j
-                                                        !() <- fourIter n d a b i (j+8)
-                                                        !() <- oneIter n d a b i (j+12)
-                                                        go (i+1) 1
-                          | j >= n-16 && j == n-15 = do !() <- eightIter n d a b i j
-                                                        !() <- fourIter n d a b i (j+8)
-                                                        !() <- twoIter n d a b i (j+12)
-                                                        go (i+1) 1
-                          | j >= n-16 && j == n-16 = do !() <- eightIter n d a b i j
-                                                        !() <- fourIter n d a b i (j+8)
-                                                        !() <- twoIter n d a b i (j+12)
-                                                        !() <- oneIter n d a b i (j+14)
-                                                        go (i+1) 1
-                          | otherwise            = do !() <- sixtIter n d a b i j
-                                                      go i (j+16)
+                          | j >= n-8 && j == n-1 = go (i+1) 1
+                          | j >= n-8 && j == n-2 = do !() <- oneIter n d a b i j
+                                                      go (i+1) 1
+                          | j >= n-8 && j == n-3 = do !() <- twoIter n d a b i j
+                                                      go (i+1) 1
+                          | j >= n-8 && j == n-4 = do !() <- twoIter n d a b i j
+                                                      !() <- oneIter n d a b i (j+2)
+                                                      go (i+1) 1 
+                          | j >= n-8 && j == n-5 = do !() <- fourIter n d a b i j
+                                                      go (i+1) 1
+                          | j >= n-8 && j == n-6 = do !() <- fourIter n d a b i j
+                                                      !() <- oneIter n d a b i (j+4)
+                                                      go (i+1) 1
+                          | j >= n-8 && j == n-7 = do !() <- fourIter n d a b i j
+                                                      !() <- twoIter n d a b i (j+4)
+                                                      go (i+1) 1
+                          | j >= n-8 && j == n-8 = do !() <- fourIter n d a b i j
+                                                      !() <- twoIter n d a b i (j+4)
+                                                      !() <- oneIter n d a b i (j+6)
+                                                      go (i+1) 1
+                          | otherwise            = do !() <- eightIter n d a b i j
+                                                      go i (j+8)
                           {-| otherwise            = do !() <- fourIter n d a b i j
                                                       go i (j+4)-}
         {-# INLINE oneIter #-} 
