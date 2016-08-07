@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleContexts,GADTs #-}
 {-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 
 module SmallpdeVector where
@@ -13,24 +13,18 @@ import Control.Monad.Primitive (PrimState)
 import Debug.Trace(traceShow)
 import Numeric (showEFloat)
 
-import Data.Primitive.SIMD (packVector, zipVector, sumVector, FloatX4)
+import Data.Primitive.SIMD (unpackVector,packVector, FloatX4)
 
 import VectorInst
 
 {-# INLINE fourIter #-} 
-fourIter !n !d !a !b !i !j = $(stencilBody 4)
-    where {-# INLINE pureStencil #-} 
-          pureStencil = pureStencil' d 
+fourIter !n !d !a !b !i !j  = $(stencil 4) pureStencil' n d a b i j 
 
 {-# INLINE eightIter #-} 
-eightIter !n !d !a !b !i !j = $(stencilBody 8)
-    where {-# INLINE pureStencil #-} 
-          pureStencil = pureStencil' d 
+eightIter !n !d !a !b !i !j = $(stencil 8) pureStencil' n d a b i j 
 
-{-# INLINE sixtIter #-} 
-sixtIter !n !d !a !b !i !j = $(stencilBody 16)
-    where {-# INLINE pureStencil #-} 
-          pureStencil = pureStencil' d 
+--{-# INLINE sixtIter #-} 
+--sixtIter !n !d !a !b !i !j = $(stencil 16) pureStencil' n d a b i j 
 
 when True  m = m
 when False _ = return ()
@@ -73,32 +67,33 @@ solve !n !iterations =
              return ()
            return a
   where {-# INLINE onePass #-}
-        onePass !n !d !a !b = go 1 1
-           where go !i !j | i == n-1 = return ()
-                          | j >= n-8 && j == n-1 = go (i+1) 1
-                          | j >= n-8 && j == n-2 = do !() <- oneIter n d a b i j
-                                                      go (i+1) 1
-                          | j >= n-8 && j == n-3 = do !() <- twoIter n d a b i j
-                                                      go (i+1) 1
-                          | j >= n-8 && j == n-4 = do !() <- twoIter n d a b i j
-                                                      !() <- oneIter n d a b i (j+2)
-                                                      go (i+1) 1 
-                          | j >= n-8 && j == n-5 = do !() <- fourIter n d a b i j
-                                                      go (i+1) 1
-                          | j >= n-8 && j == n-6 = do !() <- fourIter n d a b i j
-                                                      !() <- oneIter n d a b i (j+4)
-                                                      go (i+1) 1
-                          | j >= n-8 && j == n-7 = do !() <- fourIter n d a b i j
-                                                      !() <- twoIter n d a b i (j+4)
-                                                      go (i+1) 1
-                          | j >= n-8 && j == n-8 = do !() <- fourIter n d a b i j
-                                                      !() <- twoIter n d a b i (j+4)
-                                                      !() <- oneIter n d a b i (j+6)
-                                                      go (i+1) 1
-                          | otherwise            = do !() <- eightIter n d a b i j
-                                                      go i (j+8)
-                          {-| otherwise            = do !() <- fourIter n d a b i j
-                                                      go i (j+4)-}
+        onePass :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass !n !d !a !b = $(concretePass 8)  --go 1 1
+           --where go !i !j | i == n-1 = return ()
+           --               | j >= n-8 && j == n-1 = go (i+1) 1
+           --               | j >= n-8 && j == n-2 = do !() <- oneIter n d a b i j
+           --                                           go (i+1) 1
+           --               | j >= n-8 && j == n-3 = do !() <- twoIter n d a b i j
+           --                                           go (i+1) 1
+           --               | j >= n-8 && j == n-4 = do !() <- twoIter n d a b i j
+           --                                           !() <- oneIter n d a b i (j+2)
+           --                                           go (i+1) 1 
+           --               | j >= n-8 && j == n-5 = do !() <- fourIter n d a b i j
+           --                                           go (i+1) 1
+           --               | j >= n-8 && j == n-6 = do !() <- fourIter n d a b i j
+           --                                           !() <- oneIter n d a b i (j+4)
+           --                                           go (i+1) 1
+           --               | j >= n-8 && j == n-7 = do !() <- fourIter n d a b i j
+           --                                           !() <- twoIter n d a b i (j+4)
+           --                                           go (i+1) 1
+           --               | j >= n-8 && j == n-8 = do !() <- fourIter n d a b i j
+           --                                           !() <- twoIter n d a b i (j+4)
+           --                                           !() <- oneIter n d a b i (j+6)
+           --                                           go (i+1) 1
+           --               | otherwise            = do !() <- eightIter n d a b i j
+           --                                           go i (j+8)
+           --               {-| otherwise            = do !() <- fourIter n d a b i j
+           --                                           go i (j+4)-}
         {-# INLINE oneIter #-} 
         oneIter !n !d !a !b !i !j = do 
                   !north <- VGM.unsafeRead b (n*(i+1)+j)

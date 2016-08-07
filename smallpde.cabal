@@ -67,6 +67,7 @@ library
   
   -- Modules included in this library but not exported.
   Other-Modules:        Smallpde
+                        SmallpdeVector
   
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
@@ -76,6 +77,9 @@ library
                        template-haskell,
                        repa,
                        deepseq,
+                       vector,
+                       primitive,
+                       primitive-simd,
                        ghc-prim
   
   -- Directories containing source files.
@@ -94,6 +98,9 @@ Test-Suite test-smallpde
                     template-haskell,
                     repa,
                     deepseq,
-                    ghc-prim,                    
+                    ghc-prim,
+                    vector,
+                    primitive,  
+                    primitive-simd,                  
                     smallpde
   
