@@ -2,12 +2,16 @@ module Data.Vector.Unboxed.SIMD ( vectorisedRead
                                 , vectorisedWrite
                                 , unsafeVectorisedRead
                                 , unsafeVectorisedWrite
-                                , shuffleVectorUp
-                                , shuffleVectorUpTwo) where
+                                , shuffleUpVector
+                                , shuffleDownVector
+                                , shuffleUpFloat
+                                , shuffleDownFloat) where
 
 import Data.Vector.Unboxed.SIMD.Internal ( vectorisedRead
                                          , vectorisedWrite
                                          , unsafeVectorisedRead
                                          , unsafeVectorisedWrite
-                                         , shuffleVectorUp
-                                         , shuffleVectorUpTwo)
+                                         , shuffleUpVector
+                                         , shuffleDownVector
+                                         , shuffleUpFloat
+                                         , shuffleDownFloat)

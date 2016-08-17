@@ -160,7 +160,7 @@ vectorisedRead !v !i
   | i `mod` 4 /= 0 = error $ "only reads to multiple of 4 possible (@ " ++ show i ++ ")"
   | otherwise      = do !x <- v' `VUM.read` i'
                         return $! coerceToFloatX4 x 
-  where !v' = unsafeVectorizeMUnboxedX4 v
+  where !v' = vectorizeMUnboxedX4 v
         !i' = i `div` 4 
 
 {-# INLINE unsafeVectorisedRead #-}
@@ -187,9 +187,9 @@ unsafeVectorisedWrite !v !i !a = do !() <- VUM.unsafeWrite v' i' a'
         !i' = i `div` 4 
         !a' = coerceToInternalFloatX4 a
 
-{-# INLINE shuffleVectorUp #-}
-shuffleVectorUp :: SIMD.FloatX4 -> SIMD.FloatX4 -> SIMD.FloatX4
-shuffleVectorUp !v !v' = coerceToFloatX4 v''
+{-# INLINE shuffleDownVector #-}
+shuffleDownVector :: SIMD.FloatX4 -> SIMD.FloatX4 -> SIMD.FloatX4
+shuffleDownVector !v !v' = coerceToFloatX4 v''
   where !(FloatX4# v#)  = coerceToInternalFloatX4 v
         !(FloatX4# v'#) = coerceToInternalFloatX4 v'
         !(# v1#, v2#, v3#, v4# #)     = unpackFloatX4# v#
@@ -197,38 +197,29 @@ shuffleVectorUp !v !v' = coerceToFloatX4 v''
         !v''# = packFloatX4# (# v2#, v3#, v4#, v'1# #)
         !v''  = FloatX4# v''#
 
-{-# INLINE shuffleVectorUpTwo #-}
-shuffleVectorUpTwo :: SIMD.FloatX4 -> SIMD.FloatX4 -> SIMD.FloatX4
-shuffleVectorUpTwo !v !v' = coerceToFloatX4 v''
+{-# INLINE shuffleUpVector #-}
+shuffleUpVector :: SIMD.FloatX4 -> SIMD.FloatX4 -> SIMD.FloatX4
+shuffleUpVector !v !v' = coerceToFloatX4 v''
   where !(FloatX4# v#)  = coerceToInternalFloatX4 v
         !(FloatX4# v'#) = coerceToInternalFloatX4 v'
         !(# v1#, v2#, v3#, v4# #)     = unpackFloatX4# v#
         !(# v'1#, v'2#, v'3#, v'4# #) = unpackFloatX4# v'#
-        !v''# = packFloatX4# (# v3#, v4#, v'1#, v'2# #)
+        !v''# = packFloatX4# (# v4#, v'1#, v'2#, v'3# #)
         !v''  = FloatX4# v''#
 
-{-# INLINE shuffleUpFloat #-}
-shuffleUpFloat :: SIMD.FloatX4 -> Float -> SIMD.FloatX4
-shuffleUpFloat !v !f = coerceToFloatX4 v'
+
+{-# INLINE shuffleDownFloat #-}
+shuffleDownFloat :: SIMD.FloatX4 -> Float -> SIMD.FloatX4
+shuffleDownFloat !v !f = coerceToFloatX4 v'
   where !(FloatX4# v#)  = coerceToInternalFloatX4 v
         !(# v1#, v2#, v3#, v4# #)     = unpackFloatX4# v#
         !(F# f#) = f
         !v'# = packFloatX4# (# v2#, v3#, v4#, f# #)
         !v'  = FloatX4# v'#
 
-{-# INLINE shuffleUpTwoFloat #-}
-shuffleUpTwoFloat :: SIMD.FloatX4 -> Float -> Float -> SIMD.FloatX4
-shuffleUpTwoFloat !v !f !f' = coerceToFloatX4 v'
-  where !(FloatX4# v#)  = coerceToInternalFloatX4 v
-        !(# v1#, v2#, v3#, v4# #)     = unpackFloatX4# v#
-        !(F# f#) = f
-        !(F# f'#) = f'
-        !v'# = packFloatX4# (# v3#, v4#, f#, f'# #)
-        !v'  = FloatX4# v'#
-
-{-# INLINE shuffleDownFloat #-}
-shuffleDownFloat :: Float -> SIMD.FloatX4 -> SIMD.FloatX4
-shuffleDownFloat !f !v = coerceToFloatX4 v'
+{-# INLINE shuffleUpFloat #-}
+shuffleUpFloat :: Float -> SIMD.FloatX4 -> SIMD.FloatX4
+shuffleUpFloat !f !v = coerceToFloatX4 v'
   where !(FloatX4# v#) = coerceToInternalFloatX4 v
         !(# v1#, v2#, v3#, v4# #) = unpackFloatX4# v#
         !(F# f#) = f
