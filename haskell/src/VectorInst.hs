@@ -10,8 +10,8 @@ import qualified Data.Primitive.SIMD as SIMD
 
 (<$$>) f g = ((<$>) f) <$> g
 
-sIMD = True
---sIMD = False
+--sIMD = True
+sIMD = False
 
 constValue width | sIMD && (width `elem` [2^i | i <- [2..width]]) = [| \d -> SIMD.packVector (d,d,d,d) |]
                  | otherwise                       = [| \d -> d |] 
@@ -56,7 +56,7 @@ concretePass width = do goBody <- guardedB [ tupM (concretePassLhs width l)
         pureStencilName' = mkName "pureStencil_"
         stencilBodyName w | sIMD && (w `elem` [2^i | i <- [2..width]]) = stencilBody' w
                           | otherwise                   = stencilBody w
-        offset | sIMD      = [|0|]
+        offset | sIMD      = [|1|]
                | otherwise = [|1|]
 
 
@@ -68,7 +68,7 @@ concretePassLhs width l | l == 0     = normalG [| $(i) == $(n)-1     |]
   where n = varE $ mkName "n"
         i = varE $ mkName "i"
         j = varE $ mkName "j"
-        offset | sIMD      = [|2|]
+        offset | sIMD      = [|1|]
                | otherwise = [|1|]
 
 concretePassRhs width l = doE $ stencils ++ recursiveCall
@@ -99,20 +99,20 @@ binary x = r:binary q
 stencilBody' :: Int -> Q Exp
 stencilBody' width= doE $   (readRow     width 0  "north"    1    0)
                          ++ (readRow     width 0  "south"    (-1) 0 )
-                       --  ++ [(readSingle  "east'" 0 (-1))]
+                         ++ [(readSingle  "east'" 0 (-1))]
                          ++ (readRow     width 0  "here"     0    0)
-                         ++ (readRow     width 0  "east"     0    0)
-                         ++ (readRow     width 0  "west"     0    0)
-                       --  ++ [(readSingle  "west'" 0 width)]
-                       --  ++ (shuffleUp   width     "east" "here" "east'")
-                      --   ++ (shuffleDown width     "west" "here" "west'")
+                        -- ++ (readRow     width 0  "east"     0    0)
+                        -- ++ (readRow     width 0  "west"     0    0)
+                         ++ [(readSingle  "west'" 0 width)]
+                         ++ (shuffleUp   width     "east" "here" "east'")
+                         ++ (shuffleDown width     "west" "here" "west'")
                          ++ (funcVct     width     "new" "pureStencil" ["here","east","north","west","south"])
-                         -- ++ [printRow    width     "north" ]
-                         -- ++ [printRow    width     "east" ]
-                         -- ++ [printRow    width     "here" ]
-                         -- ++ [printRow    width     "west" ]
-                         -- ++ [printRow    width     "south" ]
-                         -- ++ [printRow    width     "new" ]                         
+                         ++ [printRow    width     "north" ]
+                         ++ [printRow    width     "east" ]
+                         ++ [printRow    width     "here" ]
+                         ++ [printRow    width     "west" ]
+                         ++ [printRow    width     "south" ]
+                         ++ [printRow    width     "new" ]                         
                          ++ (writeRow    width     "new"      0    0)
                          ++ [returnRow   0 "nothing"]
 

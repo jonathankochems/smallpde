@@ -56,7 +56,7 @@ solve !n !iterations =
                !b' = VU.create (do !b <- VGM.new (n*n); VGM.set b 0; return b)
            !a <- VU.thaw a'
            !b <- VU.thaw b'
-           !() <- VGM.unsafeWrite a (n*halfn + halfn-1) 1.0 
+           !() <- VGM.unsafeWrite a (n*halfn + halfn) 1.0 
            !() <- forM_ [0..steps-1] $! \_ -> do
                     !() <- onePass n d b a
                     !() <- onePass n d a b
