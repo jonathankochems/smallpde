@@ -3,7 +3,7 @@ sudo: false
 
 matrix:
   include:
-    - env: CABALVER=1.20 GHCVER=7.10.3
+    - env: CABALVER=1.20 GHCVER=7.10.3 LLVM=3.5
       addons: {apt: {packages: [cabal-install-1.20,ghc-7.10.3],sources: [hvr-ghc]}}
 
 addons:
@@ -23,7 +23,9 @@ cache:
 
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
-  - ghc --version
+  - ghc --version; true
+  - llc --version; true
+  - opt --version; true
 
 install:
   - cabal-1.20 update
