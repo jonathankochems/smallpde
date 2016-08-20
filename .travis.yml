@@ -22,7 +22,7 @@ cache:
   - $HOME/.ghc
 
 before_install:
-  - export PATH=/opt/ghc/$GHCVER/bin:/usr/lib/llvm-3.5/bin:/opt/happy/1.19.3/bin:~/.cabal.bin:$PATH
+  - export PATH=/opt/ghc/$GHCVER/bin:/usr/lib/llvm-3.5/bin:/opt/happy/1.19.3/bin:~/.cabal/bin:$PATH
   - ghc --version; true
   - llc --version; true
   - opt --version; true
