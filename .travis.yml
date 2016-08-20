@@ -24,8 +24,8 @@ cache:
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
   - ghc --version; true
-  - llc-3.5 --version; true
-  - opt-3.5 --version; true
+  - llc --version; true
+  - opt --version; true
 
 install:
   - cabal-1.20 update
