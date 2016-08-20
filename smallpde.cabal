@@ -61,6 +61,35 @@ source-repository this
   branch:   master
   tag:      tip
 
+executable fdm-haskell
+  -- Modules exported by the library.
+  Exposed-Modules:      Main
+  
+  -- Modules included in this library but not exported.
+  Other-Modules:        SmallpdeVector
+  
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:    
+  
+  -- Other library packages from which modules are imported.
+  build-depends:       base >=4 && <5,
+                       template-haskell,
+                       deepseq,
+                       vector,
+                       primitive,
+                       primitive-simd,
+                       ghc-prim
+  
+  -- Directories containing source files.
+  hs-source-dirs:      haskell/src      
+  
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+  
+  ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math 
+  -Wall
+
+
 library
   -- Modules exported by the library.
   Exposed-Modules:      Main

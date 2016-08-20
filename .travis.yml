@@ -1,9 +1,9 @@
 language: haskell
 ghc:
-  - 7.8
+  - 7.10
 sudo: false
 env:
-  - GHCVER=7.8.3
+  - GHCVER=7.10.3
 
 addons:
  apt:
@@ -11,7 +11,7 @@ addons:
    - hvr-ghc
    packages:
    - cabal-install-1.20
-   - ghc-7.8.3 
+   - ghc-7.10.3 
    - happy
    - hlint
 
