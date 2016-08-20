@@ -4,7 +4,7 @@ sudo: false
 matrix:
   include:
     - env: CABALVER=1.20 GHCVER=7.10.3 LLVM=3.5
-      addons: {apt: {packages: [cabal-install-1.20,ghc-7.10.3,clang-3.5],sources: [hvr-ghc,llvm-toolchain-precise-3.5,ubuntu-toolchain-r-test]}}
+      addons: {apt: {packages: [cabal-install-1.20,ghc-7.10.3,llc-3.5,opt-3.5],sources: [hvr-ghc,llvm-toolchain-precise-3.5,ubuntu-toolchain-r-test]}}
 
 addons:
  apt:
