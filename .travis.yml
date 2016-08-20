@@ -13,7 +13,7 @@ addons:
    packages:
    - cabal-install-1.20
    - ghc-7.10.3 
-   - happy
+   - happy-1.17
    - hlint
 
 cache:
