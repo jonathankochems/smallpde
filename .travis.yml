@@ -1,9 +1,10 @@
-language: haskell
-ghc:
-  - 7.10
+language: c
 sudo: false
-env:
-  - GHCVER=7.10.3
+
+matrix:
+  include:
+    - env: CABALVER=1.20 GHCVER=7.10.3
+      addons: {apt: {packages: [cabal-install-1.20,ghc-7.10.3],sources: [hvr-ghc]}}
 
 addons:
  apt:

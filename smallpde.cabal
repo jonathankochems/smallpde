@@ -89,32 +89,32 @@ executable fdm-haskell
   ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 
---library
---  -- Modules exported by the library.
---  Exposed-Modules:      Main
---  
---  -- Modules included in this library but not exported.
---  Other-Modules:        Smallpde
---                        SmallpdeVector
---  
---  -- LANGUAGE extensions used by modules in this package.
---  -- other-extensions:    
---  
---  -- Other library packages from which modules are imported.
---  build-depends:       base >=4 && <5,
---                       template-haskell,
---                       repa,
---                       deepseq,
---                       vector,
---                       primitive,
---                       primitive-simd,
---                       ghc-prim
---  
---  -- Directories containing source files.
---  hs-source-dirs:      haskell/src      
---  
---  -- Base language which the package is written in.
---  default-language:    Haskell2010
+library
+  -- Modules exported by the library.
+  Exposed-Modules:      Main
+  
+  -- Modules included in this library but not exported.
+  Other-Modules:        --Smallpde
+                        SmallpdeVector
+  
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:    
+  
+  -- Other library packages from which modules are imported.
+  build-depends:       base >=4 && <5,
+                       template-haskell,
+                       deepseq,
+                       vector,
+                       primitive,
+                       primitive-simd,
+                       ghc-prim
+  
+  -- Directories containing source files.
+  hs-source-dirs:      haskell/src      
+  
+  -- Base language which the package is written in.
+  default-language:    Haskell2010
+  ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0
@@ -124,7 +124,6 @@ Test-Suite test-smallpde
                     hspec >= 1.3,
                     QuickCheck >= 2.6,
                     template-haskell,
-                    repa,
                     deepseq,
                     ghc-prim,
                     vector,
