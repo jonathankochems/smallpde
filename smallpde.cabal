@@ -94,9 +94,9 @@ library
   Exposed-Modules:      Main
   
   -- Modules included in this library but not exported.
-  Other-Modules:        --Smallpde
-                        SmallpdeVector
-  
+  Other-Modules:        SmallpdeVector
+  			--Smallpde
+                        
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   
