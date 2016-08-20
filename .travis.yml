@@ -24,7 +24,7 @@ cache:
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
   - ghc --version; true
-  - llc --version; which llc; true
+  - llc --version; which llc; ls /usr/loca/ | grep clang; true
   - opt --version; true
 
 install:
