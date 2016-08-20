@@ -24,7 +24,7 @@ cache:
 before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
   - ghc --version; true
-  - llc --version; true
+  - llc --version; which llc; true
   - opt --version; true
 
 install:
