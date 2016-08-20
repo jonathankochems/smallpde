@@ -2,14 +2,14 @@
 module SmallpdeSpec (main, spec, spec1) where
 
 import Test.Hspec
-import qualified Smallpde 
+-- import qualified Smallpde 
 import qualified SmallpdeVector
 import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
 
 
-import Data.Array.Repa (ix2, (!))
+-- import Data.Array.Repa (ix2, (!))
 
 import Control.Monad
 
