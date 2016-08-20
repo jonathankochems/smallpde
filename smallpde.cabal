@@ -130,4 +130,5 @@ Test-Suite test-smallpde
                     primitive,  
                     primitive-simd,                  
                     smallpde
+  ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
   
