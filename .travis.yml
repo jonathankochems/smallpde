@@ -37,7 +37,7 @@ install:
 script:
   - hlint . --ignore="Parse error" --ignore "Reduce duplication"
   - cabal-1.22 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2
-  - travis_wait 30 cabal-1.22 build
+  - travis_wait 60 cabal-1.22 build
   - |
     if [ $GHCVER == "7.10.3" ]; then
       cabal-1.22 test --show-details=always

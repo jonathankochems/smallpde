@@ -57,10 +57,11 @@ solve !n !iterations =
            !a <- VU.thaw a'
            !b <- VU.thaw b'
            !() <- VGM.unsafeWrite a (n*halfn + halfn) 1.0 
-           !() <- forM_ [0..steps-1] $! \_ -> do
+           !() <- forM_ [0..steps-1] (\_ -> do
                     !() <- onePass n d b a
                     !() <- onePass n d a b
                     return ()
+                 )
            when (iterations `mod` 2 == 1) $ do
              !() <- onePass n d b a
              !() <- VGM.copy a b
