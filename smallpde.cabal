@@ -67,7 +67,7 @@ executable fdm-haskell
   
   -- Modules included in this library but not exported.
   Other-Modules:        SmallpdeVector
- 			VectorInst 
+                        VectorInst 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   
@@ -95,8 +95,8 @@ library
   
   -- Modules included in this library but not exported.
   Other-Modules:        SmallpdeVector
-  			--Smallpde
-			VectorInst
+                        --Smallpde
+                        VectorInst
                         
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    

@@ -142,5 +142,5 @@ main = do let n :: Int
           forM_ [0..n-1] (\(!i) -> do
              !liness <- forM [0..n-1] (\(!j) -> do
                           !num <- VGM.unsafeRead a (n*i+j) 
-                          return $! showEFloat (Just 5) num " "))
-             putStrLn $! concat liness
+                          return $! showEFloat (Just 5) num " ")
+             putStrLn $! concat liness)
