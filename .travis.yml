@@ -3,15 +3,15 @@ sudo: false
 
 matrix:
   include:
-    - env: CABALVER=1.20 GHCVER=7.10.3 CLANG=3.5 LLVM=3.5
-      addons: {apt: {packages: [cabal-install-1.20,ghc-7.10.3,llvm-3.5,clang-3.5,happy-1.19.3],sources: [hvr-ghc,llvm-toolchain-precise-3.5,ubuntu-toolchain-r-test]}}
+    - env: CABALVER=1.22 GHCVER=7.10.3 CLANG=3.5 LLVM=3.5
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,llvm-3.5,clang-3.5,happy-1.19.3],sources: [hvr-ghc,llvm-toolchain-precise-3.5,ubuntu-toolchain-r-test]}}
 
 addons:
  apt:
    sources:
    - hvr-ghc
    packages:
-   - cabal-install-1.20
+   - cabal-install-1.22
    - ghc-7.10.3 
    - happy-1.19.3
    - hlint
@@ -26,30 +26,30 @@ before_install:
   - ghc --version; true
   - llc --version; true
   - opt --version; true
-  - cabal-1.20 install hlint
+  - cabal-1.22 install hlint
   - ls ~/.cabal/bin
 
 install:
-  - cabal-1.20 update
-  - cabal-1.20 install codecov-haskell
-  - cabal-1.20 install --only-dependencies --enable-tests --enable-benchmarks
+  - cabal-1.22 update
+  - cabal-1.22 install codecov-haskell
+  - cabal-1.22 install --only-dependencies --enable-tests --enable-benchmarks
 
 script:
   - hlint . --ignore="Parse error" --ignore "Reduce duplication"
-  - cabal-1.20 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2
-  - travis_wait 30 cabal-1.20 build
+  - cabal-1.22 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2
+  - travis_wait 30 cabal-1.22 build
   - |
-    if [ $GHCVER == "7.8.3" ]; then
-      cabal-1.20 test --show-details=always
+    if [ $GHCVER == "7.10.3" ]; then
+      cabal-1.22 test --show-details=always
     else
-      dist/build/run-cabal-test/run-cabal-test --cabal-name=cabal-1.20 --show-details=always
+      dist/build/run-cabal-test/run-cabal-test --cabal-name=cabal-1.22 --show-details=always
     fi
-  - cabal-1.20 check
-  - cabal-1.20 sdist
-  - export SRC_TGZ=$(cabal-1.20 info . | awk '{print $2 ".tar.gz";exit}') ;
+  - cabal-1.22 check
+  - cabal-1.22 sdist
+  - export SRC_TGZ=$(cabal-1.22 info . | awk '{print $2 ".tar.gz";exit}') ;
     (cd dist/;
     if [ -f "$SRC_TGZ" ]; then
-      cabal-1.20 install "$SRC_TGZ";
+      cabal-1.22 install "$SRC_TGZ";
     else
       echo "expected '$SRC_TGZ' not found";
       exit 1;
