@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, QuasiQuotes, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 ---fvectorise
 module Smallpde where
@@ -37,7 +37,7 @@ dirichlet !steps !size !arr = go steps arr
   where go  0 !arr = return arr
         go !n !arr = do arr' <- dirichlet' arr 
                         go (n-1) arr'
-        !dx = 1/((fromInteger $ toInteger size)-1)
+        !dx = 1/(fromInteger (toInteger size)-1)
         !dt = dx*dx/4 / 2
         d :: RealT
         !d  = dt/dx/dx
@@ -79,6 +79,6 @@ main = do let size      = 256-2
               
           !array <- {-event "pde solve" $-} solve size iteration
 
-          putStr   $! concat $! [ '0':" " | j <- take (size+2) $ [0..] ]
-          putStrLn $! concat $! [ '\n' : (concat $! [ (showEFloat (Just 5) $ array `unsafeIndex` (ix2 i j)) " " | j <- take size $! [0..] ]) | i <- take size $ [0..] ]
-          putStrLn $! concat $! [ '0':" " | j <- take (size+2) $ [0..] ]
+          putStr   $! concat $! [ '0':" " | j <- take (size+2) [0..] ]
+          putStrLn $! concat $! [ '\n' : (concat $! [ (showEFloat (Just 5) $ array `unsafeIndex` ix2 i j) " " | j <- take size $! [0..] ]) | i <- take size [0..] ]
+          putStrLn $! concat $! [ '0':" " | j <- take (size+2) [0..] ]

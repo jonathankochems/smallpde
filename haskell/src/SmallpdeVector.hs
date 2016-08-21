@@ -139,8 +139,8 @@ solve !n !iterations =
 main = do let n :: Int
               !n = 256
           !a <- solve n (5*1024)
-          forM_ [0..n-1] $! \(!i) -> do
-             !liness <- forM [0..n-1] $! \(!j) -> do
+          forM_ [0..n-1] (\(!i) -> do
+             !liness <- forM [0..n-1] (\(!j) -> do
                           !num <- VGM.unsafeRead a (n*i+j) 
-                          return $! showEFloat (Just 5) num " "
+                          return $! showEFloat (Just 5) num " "))
              putStrLn $! concat liness

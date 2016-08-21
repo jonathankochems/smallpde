@@ -8,13 +8,15 @@ import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Unboxed.SIMD as VUS
 import qualified Data.Primitive.SIMD as SIMD
 
-(<$$>) f g = ((<$>) f) <$> g
+import Data.Maybe(fromMaybe)
+
+(<$$>) f g = (<$>) f <$> g
 
 --sIMD = True
 sIMD = False
 
 constValue width | sIMD && (width `elem` [2^i | i <- [2..width]]) = [| \d -> SIMD.packVector (d,d,d,d) |]
-                 | otherwise                       = [| \d -> d |] 
+                 | otherwise                       = [| id |] 
 
 
 unitT = TupleT 0
@@ -34,19 +36,18 @@ concretePass width = do goBody <- guardedB [ tupM (concretePassLhs width l)
                         pureStencilBody <- NormalB <$> [| $(pureStencil') ($(constValue width) $(dV)) |] 
                         pureStencilBody' <- NormalB <$> [| $(pureStencil') ($(dV)) |] 
                         e0 <- [| $(goV) 1 $(offset) |]
-                        let ns = [ 2^i | i <- [0..floor $ log (fromInteger $ toInteger width) / log 2]] ++ 
-                                 ( if width > 2^(floor $ log (fromInteger $ toInteger width) / log 2) 
-                                   then [ width ] else [] )
-                            stencilNames = [ (mkName $ "stencil" ++ show w) | w <- ns]
+                        let ns = [ 2^i | i <- [0..floor $ logBase 2 (fromInteger $ toInteger width) ]] ++ 
+                                  [ width | width > 2 ^ floor (logBase 2 (fromInteger $ toInteger width))] 
+                            stencilNames = [ mkName $ "stencil" ++ show w | w <- ns]
                         stencilBodies <- mapM (\w -> [| $(stencilBodyName w) |]) ns
 
-                        return $ LetE ([ SigD goName $ intT `arrow` intT `arrow` (AppT ioT unitT)
+                        return $ LetE ([ SigD goName $ intT `arrow` intT `arrow` AppT ioT unitT
                                        , FunD goName [Clause [i,j] goBody []] 
                                        , FunD pureStencilName  [Clause [] pureStencilBody []] 
                                        , FunD pureStencilName' [Clause [] pureStencilBody' []] 
                                        ]
-                                       ++(map (\n -> SigD n $ intT `arrow` intT `arrow` (AppT ioT unitT)) stencilNames)
-                                       ++(map (\(sn,e) -> FunD sn [Clause [i,j] (NormalB e) []]) $ zip stencilNames stencilBodies)) e0 
+                                       ++ map (\n -> SigD n $ intT `arrow` intT `arrow` AppT ioT unitT) stencilNames
+                                       ++ map (\(sn,e) -> FunD sn [Clause [i,j] (NormalB e) []]) (zip stencilNames stencilBodies)) e0 
   where goName = mkName "go"
         goP = BangP $ VarP goName 
         goV = varE goName
@@ -72,7 +73,7 @@ concretePassLhs width l | l == 0     = normalG [| $(i) == $(n)-1     |]
                | otherwise = [|1|]
 
 concretePassRhs width l = doE $ stencils ++ recursiveCall
-  where stencils = map (\e -> bindS (bangP $ tupP []) e) 
+  where stencils = map (bindS (bangP $ tupP [])) 
                         [ [| $(stencilName w) $(i) ($(j)+k) |]
                           | (w,k) <- zip (widths l) $ intwidths l
                         ]
@@ -81,9 +82,9 @@ concretePassRhs width l = doE $ stencils ++ recursiveCall
                                                    [| $(return return_) ()   |]]
                       | otherwise  = [noBindS [| $(go) ($(i)+1) ($offset)    |]]
         widths :: Int -> [Int]             
-        widths x    = if l == width && width > 0 && width > 2^(floor $ log (fromInteger $ toInteger width) / log 2) 
-                      then [ width ] else (reverse $ filter (/=0) $ map (uncurry (*)) $ binary x `zip` [2^i | i <- [0..]])
-        intwidths x = [sum $ take i xs | i <- [0..(length xs)-1]]
+        widths x    = if l == width && width > 0 && width > 2^floor (logBase 2 (fromInteger $ toInteger width)) 
+                      then [ width ] else reverse $ filter (/=0) $ zipWith (*) $ binary x `zip` [2^i | i <- [0..]]
+        intwidths x = [sum $ take i xs | i <- [0..length xs-1]]
           where xs = widths x
         i             = varE $ mkName "i"
         j             = varE $ mkName "j"
@@ -97,39 +98,39 @@ binary x = r:binary q
   where (q,r) = x `divMod` 2
 
 stencilBody' :: Int -> Q Exp
-stencilBody' width= doE $   (readRow     width 0  "north"    1    0)
-                         ++ (readRow     width 0  "south"    (-1) 0 )
-                         ++ [(readSingle  "east'" 0 (-1))]
-                         ++ (readRow     width 0  "here"     0    0)
+stencilBody' width= doE $   readRow     width 0  "north"    1    0
+                         ++ readRow     width 0  "south"    (-1) 0 
+                         ++ [readSingle  "east'" 0 (-1)]
+                         ++ readRow     width 0  "here"     0    0
                         -- ++ (readRow     width 0  "east"     0    0)
                         -- ++ (readRow     width 0  "west"     0    0)
-                         ++ [(readSingle  "west'" 0 width)]
-                         ++ (shuffleUp   width     "east" "here" "east'")
-                         ++ (shuffleDown width     "west" "here" "west'")
-                         ++ (funcVct     width     "new" "pureStencil" ["here","east","north","west","south"])
+                         ++ [readSingle  "west'" 0 width]
+                         ++ shuffleUp   width     "east" "here" "east'"
+                         ++ shuffleDown width     "west" "here" "west'"
+                         ++ funcVct     width     "new" "pureStencil" ["here","east","north","west","south"]
                          ++ [printRow    width     "north" ]
                          ++ [printRow    width     "east" ]
                          ++ [printRow    width     "here" ]
                          ++ [printRow    width     "west" ]
                          ++ [printRow    width     "south" ]
                          ++ [printRow    width     "new" ]                         
-                         ++ (writeRow    width     "new"      0    0)
+                         ++ writeRow    width     "new"      0    0
                          ++ [returnRow   0 "nothing"]
 
 
 stencilBody :: Int -> Q Exp
-stencilBody width= doE $    (readRow     width 0  "north"    1    0)
-                         ++ (readRow     width 2  "eastwest" 0    (-1))
-                         ++ (readRow     width 0  "south"    (-1) 0 )
-                         ++ (shuffleRow  width 0   "east" "eastwest")
-                         ++ (shuffleRow  width 1   "here" "eastwest")
-                         ++ (shuffleRow  width 2   "west" "eastwest")
+stencilBody width= doE $    readRow     width 0  "north"    1    0
+                         ++ readRow     width 2  "eastwest" 0    (-1)
+                         ++ readRow     width 0  "south"    (-1) 0 
+                         ++ shuffleRow  width 0   "east" "eastwest"
+                         ++ shuffleRow  width 1   "here" "eastwest"
+                         ++ shuffleRow  width 2   "west" "eastwest"
 {-                         ++ (packRow     width     "north" )
                          ++ (packRow     width     "east" )
                          ++ (packRow     width     "here" )
                          ++ (packRow     width     "west" )
                          ++ (packRow     width     "south")-}
-                         ++ (funcVct     width     "new" "pureStencil" ["here","east","north","west","south"])
+                         ++ funcVct     width     "new" "pureStencil" ["here","east","north","west","south"]
 {-                         ++ (unpackRow   width     "new")-}
                          -- ++ [printRow    width     "north" ]
                          -- ++ [printRow    width     "east" ]
@@ -137,7 +138,7 @@ stencilBody width= doE $    (readRow     width 0  "north"    1    0)
                          -- ++ [printRow    width     "west" ]
                          -- ++ [printRow    width     "south" ]
                          -- ++ [printRow    width     "new" ]
-                         ++ (writeRow    width     "new"      0    0)
+                         ++ writeRow    width     "new"      0    0
                          ++ [returnRow   0 "nothing"]
 
 returnRow :: Int -> String -> Q Stmt
@@ -169,8 +170,8 @@ readSingle    label rowOffset colOffset
 
 readRow :: Int -> Int -> String -> Int -> Int -> [Q Stmt]
 readRow width extra label rowOffset colOffset 
-  | not sIMD || width < 4  = map (readRowk) [0..width+extra-1]
-  | otherwise              = map (readVectorRowk) [ i | i <- [0..((width+extra+3) `div` 4)-1]] 
+  | not sIMD || width < 4  = map readRowk [0..width+extra-1]
+  | otherwise              = map readVectorRowk [0 .. ((width + extra + 3) `div` 4) - 1] 
   where readRowk k = do Just b <- varE <$$> lookupValueName "b"
                         Just n <- varE <$$> lookupValueName "n"
                         let i = lookupVar "i"
@@ -189,8 +190,8 @@ readRow width extra label rowOffset colOffset
 
 writeRow :: Int -> String -> Int -> Int -> [Q Stmt]
 writeRow width label rowOffset colOffset 
-  | not sIMD || not (width `elem` [2^i | i <- [2..width]]) = map (writeRowk) [0..width-1]
-  | otherwise                           = map (writeVectorRowk) [ i | i <- [0..(width `div` 4)-1]]
+  | not sIMD || width `notElem` [2^i | i <- [2..width]] = map writeRowk [0..width-1]
+  | otherwise                           = map writeVectorRowk [0 .. (width `div` 4) - 1]
   where writeRowk k = do Just a <- varE <$$> lookupValueName "a"
                          Just n <- varE <$$> lookupValueName "n"
                          let i = lookupVar "i"
@@ -208,7 +209,7 @@ writeRow width label rowOffset colOffset
 
 shuffleRow :: Int -> Int -> String -> String -> [Q Stmt]
 shuffleRow    width offset destLabel srcLabel 
-  | not sIMD || not (width `elem` [2^i | i <- [2..width]]) = map (shuffleRowk) [0..width-1]
+  | not sIMD || width `notElem` [2^i | i <- [2..width]] = map shuffleRowk [0..width-1]
   | otherwise = error "not implemented"
   where shuffleRowk k = do incBody     <- NormalB <$>  [|$(src)|]
                            Just floatT <- ConT <$$> lookupTypeName  "Float"
@@ -255,7 +256,7 @@ shuffleDown    width destLabel srcLabel floatLbl
 
 
 incRow :: Int -> String -> String -> [Q Stmt]
-incRow width srcLabel destLabel = map (incRowk) [0..width-1]
+incRow width srcLabel destLabel = map incRowk [0..width-1]
   where incRowk k = do incBody <- NormalB <$>  [|$(src)+1|]
                        return $ LetS [ValD dest incBody []]
           where dest = BangP . VarP . mkName $ destLabel ++ show k
@@ -263,7 +264,7 @@ incRow width srcLabel destLabel = map (incRowk) [0..width-1]
 
 funcVct :: Int -> String -> String -> [String] -> [Q Stmt]
 funcVct width destLabel funcLabel srcLabels 
-  | not sIMD || not (width `elem` [2^i | i <- [2..width]]) = funcRow width destLabel funcLabel srcLabels
+  | not sIMD || width `notElem` [2^i | i <- [2..width]] = funcRow width destLabel funcLabel srcLabels
   | otherwise  = [m]  
           where dests     = [ BangP $ VarP destName | destName <- destNames]
                 destNames = [ mkName $ destLabel ++ "Vct" ++ show k | k <- [0..(width `div` 4)-1] ]
@@ -276,14 +277,14 @@ funcVct width destLabel funcLabel srcLabels
 lookupVar :: String -> Q Exp
 lookupVar name = do preV  <- VarE <$$> lookupValueName name
                     let !v' = VarE $ mkName name
-                        !v  = maybe v' (id) preV
+                        !v  = fromMaybe v' preV
                     return v
 
 funcRow :: Int -> String -> String -> [String] -> [Q Stmt]
-funcRow width destLabel funcLabel srcLabels = map (incRowk) [0..width-1]
+funcRow width destLabel funcLabel srcLabels = map incRowk [0..width-1]
   where incRowk k = do preF  <- VarE <$$> lookupValueName (funcLabel++(if sIMD then "_" else ""))
                        let !f' = VarE $ mkName (funcLabel++(if sIMD then "_" else ""))
-                           !f  = maybe f'(id) preF 
+                           !f  = fromMaybe f' preF 
                            funBody = NormalB $ foldl AppE f srcs 
                        return $ LetS [ValD dest funBody []]
           where dest  = BangP . VarP . mkName $ destLabel ++ show k
