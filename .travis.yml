@@ -26,11 +26,11 @@ before_install:
   - ghc --version; true
   - llc --version; true
   - opt --version; true
+  - cabal-1.22 update
   - cabal-1.22 install hlint
   - ls ~/.cabal/bin
 
 install:
-  - cabal-1.22 update
   - cabal-1.22 install codecov-haskell
   - cabal-1.22 install --only-dependencies --enable-tests --enable-benchmarks
 
