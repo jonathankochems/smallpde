@@ -60,6 +60,11 @@ source-repository this
   location: git://github.com/jonathankochems/smallpde.git 
   branch:   master
   tag:      tip
+  
+Flag NoOptimisations
+  Description: Use no optimsations for fast compile but slow execution
+  Default: False
+  Manual: True
 
 executable fdm-haskell
   -- Modules exported by the library.
@@ -86,8 +91,10 @@ executable fdm-haskell
   -- Base language which the package is written in.
   default-language:    Haskell2010
   
-  ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
-
+  if (noOptimsations)
+    ghc-options:  -rtsopts -fllvm -Wall
+  else
+    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 library
   -- Modules exported by the library.
