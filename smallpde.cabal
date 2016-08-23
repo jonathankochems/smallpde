@@ -91,10 +91,11 @@ executable fdm-haskell
   -- Base language which the package is written in.
   default-language:    Haskell2010
   
-  if (noOptimsations)
+  if flag(noOptimsations) 
     ghc-options:  -rtsopts -fllvm -Wall
-  else
+  else 
     ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+  
 
 library
   -- Modules exported by the library.
