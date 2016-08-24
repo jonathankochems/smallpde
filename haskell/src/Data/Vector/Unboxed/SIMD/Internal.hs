@@ -67,11 +67,11 @@ instance VGM.MVector VUM.MVector ty where {                                   \
 ; {-# INLINE basicUnsafeSlice #-}                                       \
 ; {-# INLINE basicOverlaps #-}                                          \
 ; {-# INLINE basicUnsafeNew #-}                                         \
-; {-# INLINE basicUnsafeReplicate #-}                                   \
+; {- # INLINE basicUnsafeReplicate # -}                                   \
 ; {-# INLINE basicUnsafeRead #-}                                        \
 ; {-# INLINE basicUnsafeWrite #-}                                       \
 ; {-# INLINE basicClear #-}                                             \
-; {-# INLINE basicSet #-}                                               \
+; {- # INLINE basicSet # -}                                               \
 ; {-# INLINE basicUnsafeCopy #-}                                        \
 ; {-# INLINE basicUnsafeGrow #-}                                        \
 ; basicLength (con v) = VGM.basicLength v                                 \

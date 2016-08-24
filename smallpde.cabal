@@ -61,7 +61,7 @@ source-repository this
   branch:   master
   tag:      tip
   
-Flag NoOptimisations
+Flag Nooptimisations
   Description: Use no optimsations for fast compile but slow execution
   Default: False
   Manual: True
@@ -91,7 +91,7 @@ executable fdm-haskell
   -- Base language which the package is written in.
   default-language:    Haskell2010
   
-  if flag(noOptimisations) 
+  if flag(nooptimisations) 
     ghc-options:  -rtsopts -fllvm -Wall
   else 
     ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
@@ -123,7 +123,10 @@ library
   
   -- Base language which the package is written in.
   default-language:    Haskell2010
-  ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+  if flag(nooptimisations) 
+    ghc-options:  -rtsopts -fllvm -Wall
+  else 
+    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0

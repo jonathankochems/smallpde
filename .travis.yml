@@ -32,7 +32,7 @@ before_install:
 
 install:
   - cabal-1.22 install codecov-haskell
-  - cabal-1.22 install --only-dependencies --enable-tests --enable-benchmarks -f noOptimisations
+  - cabal-1.22 install --only-dependencies --enable-tests --enable-benchmarks -f nooptimisations
 
 script:
   - hlint . --ignore="Parse error" --ignore "Reduce duplication"
