@@ -73,7 +73,7 @@ spec = do
               --putStrLn ""
     describe "the solution at step t" $ do 
       it "should be symmetric along the diagonal" $
-        do small <- Smallpde.solve 17 16
+        do -- small <- Smallpde.solve 17 16
 --           forM_ [0..16] $ \i -> 
 --              forM_ [0..i] $ \j -> 
 --                  (small ! ix2 i j) `shouldAlmostBe` (small ! ix2 j i)
@@ -82,7 +82,7 @@ spec = do
               forM_ [0..i] $ \j -> 
                   (smallVector VG.! (19*i + j)) `shouldAlmostBe` (smallVector VG.! (19*j + i))
       it "should be symmetric along the y-axis" $ 
-        do small <- Smallpde.solve 17 16
+        do -- small <- Smallpde.solve 17 16
 --           forM_ [0..8] $ \i -> 
 --              forM_ [0..16] $ \j -> 
 --                  (small ! ix2 i j) `shouldAlmostBe` (small ! ix2 (16-i) j)

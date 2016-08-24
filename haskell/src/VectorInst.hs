@@ -5,7 +5,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 
 import qualified Data.Vector.Generic.Mutable as VGM
-import qualified Data.Vector.Unboxed.SIMD as VUS
+-- import qualified Data.Vector.Unboxed.SIMD as VUS
 import qualified Data.Primitive.SIMD as SIMD
 
 import Data.Maybe(fromMaybe)
@@ -183,7 +183,7 @@ readRow width extra label rowOffset colOffset
                               Just n <- varE <$$> lookupValueName "n"
                               let i = lookupVar "i"
                                   j = lookupVar "j"
-                              e <- [| VUS.unsafeVectorisedRead $(b) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + 4*k) |]
+                              e <- error "" -- [| VUS.unsafeVectorisedRead $(b) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + 4*k) |]
                               return $ BindS l e                
           where l = BangP . VarP . mkName $ label++"Vct"++show k
           
@@ -203,7 +203,7 @@ writeRow width label rowOffset colOffset
                                Just n <- varE <$$> lookupValueName "n"
                                let i = lookupVar "i"
                                    j = lookupVar "j"
-                               e <- [| VUS.unsafeVectorisedWrite $(a) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + 4*k) $(l) |]
+                               e <- error "" -- [| VUS.unsafeVectorisedWrite $(a) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + 4*k) $(l) |]
                                return $ BindS (BangP $ TupP []) e
           where l = varE . mkName $ label++"Vct"++show k
 
@@ -224,8 +224,8 @@ shuffleUp :: Int -> String -> String -> String -> [Q Stmt]
 shuffleUp    width destLabel srcLabel floatLbl
   = map shuffleUpk [0..(width `div` 4-1)]
   where shuffleUpk k 
-          = do let shuffled | k == 0    = [| VUS.shuffleUpFloat $(float) $(src) |]
-                            | otherwise = [| VUS.shuffleUpVector $(prev) $(src) |]
+          = do let shuffled | k == 0    = error "" -- [| VUS.shuffleUpFloat $(float) $(src) |]
+                            | otherwise = error "" -- [| VUS.shuffleUpVector $(prev) $(src) |]
                incBody <- NormalB <$> shuffled
                Just floatX4T <- ConT <$$> lookupTypeName  "FloatX4"
                return $ LetS [ SigD destName floatX4T
@@ -241,8 +241,8 @@ shuffleDown :: Int -> String -> String -> String -> [Q Stmt]
 shuffleDown    width destLabel srcLabel floatLbl
   = map shuffleDownk [0..(width `div` 4-1)]
   where shuffleDownk k 
-          = do let shuffled | k +1 == width `div` 4 = [| VUS.shuffleDownFloat $(src) $(float) |]
-                            | otherwise             = [| VUS.shuffleDownVector $(src) $(post)  |]
+          = do let shuffled | k +1 == width `div` 4 = error "" -- [| VUS.shuffleDownFloat $(src) $(float) |]
+                            | otherwise             = error "" -- [| VUS.shuffleDownVector $(src) $(post)  |]
                incBody <- NormalB <$> shuffled
                Just floatX4T <- ConT <$$> lookupTypeName  "FloatX4"
                return $ LetS [ SigD destName floatX4T
