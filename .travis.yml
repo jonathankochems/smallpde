@@ -35,7 +35,7 @@ install:
   - cabal-1.22 install --only-dependencies --enable-tests --enable-benchmarks -f nooptimisations
 
 script:
-  - hlint . --ignore="Parse error" --ignore "Reduce duplication"
+  - hlint . --ignore="Parse error" --ignore "Reduce duplication" --ignore "Redundant bang pattern"
   - cabal-1.22 configure --enable-tests --enable-benchmarks --enable-library-coverage -v2 -f nooptimisations
   - travis_wait 60 cabal-1.22 build --verbose
   - |

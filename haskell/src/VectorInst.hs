@@ -83,7 +83,7 @@ concretePassRhs width l = doE $ stencils ++ recursiveCall
                       | otherwise  = [noBindS [| $(go) ($(i)+1) ($offset)    |]]
         widths :: Int -> [Int]             
         widths x    = if l == width && width > 0 && width > 2^floor (logBase 2 (fromInteger $ toInteger width)) 
-                      then [ width ] else reverse $ filter (/=0) (zipWith (*) (binary x) $ [2^i | i <- [0..]])
+                      then [ width ] else reverse $ filter (/=0) (zipWith (*) (binary x) [2^i | i <- [0..]])
         intwidths x = [sum $ take i xs | i <- [0..length xs-1]]
           where xs = widths x
         i             = varE $ mkName "i"
