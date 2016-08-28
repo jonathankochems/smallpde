@@ -49,7 +49,7 @@ concretePass width = do goBody <- guardedB [ tupM (concretePassLhs width l)
         j   = BangP . VarP $ mkName "j"
         pureStencilName  = mkName "pureStencil"
         pureStencilName' = mkName "pureStencil_"
-        stencilBodyName w = stencilBody w
+        stencilBodyName = stencilBody
         offset  = [|1|]
 
 
