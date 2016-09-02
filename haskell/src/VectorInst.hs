@@ -8,9 +8,28 @@ import qualified Data.Vector.Generic.Mutable as VGM
 
 import Data.Maybe(fromMaybe)
 
+
+data Variable = Variable { name :: String
+                         , externalScope :: Bool 
+                         , vectorVariable :: Bool
+                         }
+localVariable name  = Variable { name = name, externalScope = False, vectorVariable = False }
+globalVariable name = Variable { name = name, externalScope = True,  vectorVariable = False }
+vectorVariable name = Variable { name = name, externalScope = False, vectorVariable = True }
+
+lookupVar :: Variable -> Q Exp
+lookupVar var = do preV  <- VarE <$$> lookupValueName $ name var
+                   if (not $ externalScope var) (
+                      let !v' = VarE . mkName $ name var
+                          !v  = fromMaybe v' preV
+                      return v
+                   ) else fromMaybe (error $ "Variable " ++ name var ++ " not in scope") preV
+
 (<$$>) f g = (<$>) f <$> g
 
 constValue width  = [| id |] 
+
+
 
 
 unitT = TupleT 0
@@ -124,6 +143,9 @@ readSingle    label rowOffset colOffset
        return $ BindS l e
           where l = BangP . VarP . mkName $ label
 
+
+
+
 readRow :: Int -> Int -> String -> Int -> Int -> [Q Stmt]
 readRow width extra label rowOffset colOffset 
     = map readRowk [0..width+extra-1]
@@ -159,11 +181,6 @@ shuffleRow    width offset destLabel srcLabel
                 destName = mkName $ destLabel ++ show k
                 src      = varE . mkName $ srcLabel ++ show (k+offset)
 
-lookupVar :: String -> Q Exp
-lookupVar name = do preV  <- VarE <$$> lookupValueName name
-                    let !v' = VarE $ mkName name
-                        !v  = fromMaybe v' preV
-                    return v
 
 funcRow :: Int -> String -> String -> [String] -> [Q Stmt]
 funcRow width destLabel funcLabel srcLabels = map incRowk [0..width-1]
