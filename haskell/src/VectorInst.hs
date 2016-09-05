@@ -7,23 +7,31 @@ import Language.Haskell.TH.Syntax
 import qualified Data.Vector.Generic.Mutable as VGM
 
 import Data.Maybe(fromMaybe)
+import Debug.Trace(traceShow)
 
+traceShowIO :: (Show t) =>  t -> IO()
+traceShowIO x = traceShow x $ return ()
+useEpilogues = True 
 
 data Variable = Variable { name :: String
                          , externalScope :: Bool 
-                         , vectorVariable :: Bool
+                         , vector :: Bool
                          }
-localVariable name  = Variable { name = name, externalScope = False, vectorVariable = False }
-globalVariable name = Variable { name = name, externalScope = True,  vectorVariable = False }
-vectorVariable name = Variable { name = name, externalScope = False, vectorVariable = True }
+localVariable name  = Variable { name = name, externalScope = False, vector = False }
+globalVariable name = Variable { name = name, externalScope = True,  vector = False }
+vectorVariable name = Variable { name = name, externalScope = False, vector = True }
 
 lookupVar :: Variable -> Q Exp
-lookupVar var = do preV  <- VarE <$$> lookupValueName $ name var
-                   if (not $ externalScope var) (
-                      let !v' = VarE . mkName $ name var
-                          !v  = fromMaybe v' preV
-                      return v
-                   ) else fromMaybe (error $ "Variable " ++ name var ++ " not in scope") preV
+lookupVar var = do (preV :: Maybe Exp)  <- VarE <$$> (lookupValueName $ name var)
+                   if (not $ externalScope var) then 
+                     ( do
+                        let !v' = VarE . mkName $ name var
+                            !v  = fromMaybe v' preV
+                        return v
+                     ) 
+                   else (
+                         return $ fromMaybe (error $ "Variable " ++ name var ++ " not in scope") preV
+                     )
 
 (<$$>) f g = (<$>) f <$> g
 
@@ -37,30 +45,31 @@ unitT = TupleT 0
 infixr `arrow`
 arrow t t' = (ArrowT `AppT` t) `AppT` t'
 
-concretePass :: Int -> Q Exp
-concretePass width = do goBody <- guardedB [ tupM (concretePassLhs width l)
-                                                  (concretePassRhs width l) | l <- [0..width] 
-                                           ]
-                        Just intT       <- ConT <$$> lookupTypeName "Int"
-                        Just floatT     <- ConT <$$> lookupTypeName "Float"
-                        Just ioT        <- ConT <$$> lookupTypeName "IO"
-                        Just pureStencil' <- varE <$$> lookupValueName "pureStencil'"
-                        let dV = lookupVar "d"
-                        pureStencilBody <- NormalB <$> [| $(pureStencil') ($(constValue width) $(dV)) |] 
-                        pureStencilBody' <- NormalB <$> [| $(pureStencil') ($(dV)) |] 
-                        e0 <- [| $(goV) 1 $(offset) |]
-                        let ns = [ 2^i | i <- [0..floor $ logBase 2 (fromInteger $ toInteger width) ]] ++ 
-                                  [ width | width > 2 ^ floor (logBase 2 (fromInteger $ toInteger width))] 
-                            stencilNames = [ mkName $ "stencil" ++ show w | w <- ns]
-                        stencilBodies <- mapM (\w -> [| $(stencilBodyName w) |]) ns
+concretePass :: Int -> Bool -> Q Exp
+concretePass width epilogue 
+    = do goBody <- guardedB [ tupM (concretePassLhs width l)
+                                   (concretePassRhs width l) | l <- cases 
+                            ]
+         Just intT       <- ConT <$$> lookupTypeName "Int"
+         Just floatT     <- ConT <$$> lookupTypeName "Float"
+         Just ioT        <- ConT <$$> lookupTypeName "IO"
+         Just pureStencil' <- varE <$$> lookupValueName "pureStencil'"
+         let dV = lookupVar $ localVariable "d"
+         pureStencilBody <- NormalB <$> [| $(pureStencil') ($(constValue width) $(dV)) |] 
+         pureStencilBody' <- NormalB <$> [| $(pureStencil') ($(dV)) |] 
+         e0 <- [| $(goV) 1 $(offset) |]
+         let ns = [ 2^i | i <- [0..floor $ logBase 2 (fromInteger $ toInteger width) ]] ++ 
+                   [ width | width > 2 ^ floor (logBase 2 (fromInteger $ toInteger width))] 
+             stencilNames = [ mkName $ "stencil" ++ show w | w <- ns]
+         stencilBodies <- mapM (\w -> [| $(stencilBodyName w) |]) ns
 
-                        return $ LetE ([ SigD goName $ intT `arrow` intT `arrow` AppT ioT unitT
-                                       , FunD goName [Clause [i,j] goBody []] 
-                                       , FunD pureStencilName  [Clause [] pureStencilBody []] 
-                                       , FunD pureStencilName' [Clause [] pureStencilBody' []] 
-                                       ]
-                                       ++ map (\n -> SigD n $ intT `arrow` intT `arrow` AppT ioT unitT) stencilNames
-                                       ++ map (\(sn,e) -> FunD sn [Clause [i,j] (NormalB e) []]) (zip stencilNames stencilBodies)) e0 
+         return $ LetE ([ SigD goName $ intT `arrow` intT `arrow` AppT ioT unitT
+                        , FunD goName [Clause [i,j] goBody []] 
+                        , FunD pureStencilName  [Clause [] pureStencilBody []] 
+                        , FunD pureStencilName' [Clause [] pureStencilBody' []] 
+                        ]
+                        ++ map (\n -> SigD n $ intT `arrow` intT `arrow` AppT ioT unitT) stencilNames
+                        ++ map (\(sn,e) -> FunD sn [Clause [i,j] (NormalB e) []]) (zip stencilNames stencilBodies)) e0 
   where goName = mkName "go"
         goP = BangP $ VarP goName 
         goV = varE goName
@@ -68,13 +77,19 @@ concretePass width = do goBody <- guardedB [ tupM (concretePassLhs width l)
         j   = BangP . VarP $ mkName "j"
         pureStencilName  = mkName "pureStencil"
         pureStencilName' = mkName "pureStencil_"
-        stencilBodyName w = stencilBody w
-        offset  = [|1|]
+        stencilBodyName = stencilBody
+        offset    = [|1|]
+        cases | epilogue && width == 1  = [0,1,2]
+              | epilogue && width == 2  = [0,1,2,3]
+              | epilogue                = [0..width]
+              | otherwise = [width] 
 
 
 tupM x y = do x' <- x; y' <- y; return (x',y')  
 
 concretePassLhs width l | l == 0     = normalG [| $(i) == $(n)-1     |]
+                        | width <= 2 && l == 1 = normalG [| $(j) == $(n)-1 |]
+                        | width <= 2 && l <=  width = normalG [| $(j) == $(n)-(l-1+ $(offset)) |]
                         | l <  width = normalG [| $(j) == $(n)-(l+ $(offset)) |]
                         | l >= width = normalG [| otherwise |]
   where n = varE $ mkName "n"
@@ -82,18 +97,27 @@ concretePassLhs width l | l == 0     = normalG [| $(i) == $(n)-1     |]
         j = varE $ mkName "j"
         offset = [|1|]
 
-concretePassRhs width l = doE $ stencils ++ recursiveCall
+concretePassRhs width l = doE $ debug ++ stencils ++ recursiveCall
   where stencils = map (bindS (bangP $ tupP [])) 
                         [ [| $(stencilName w) $(i) ($(j)+k) |]
                           | (w,k) <- zip (widths l) $ intwidths l
                         ]
-        recursiveCall | l == width = [noBindS [| $(go) ($(i))   ($(j)+width)|]]
+        recursiveCall | width == 1 && l == 2 = [noBindS [| $(go) ($(i))   ($(j)+width)|]]
+                      | width == 1 && l == 1 = [noBindS [| $(go) ($(i)+1) ($offset)    |]]
+                      | width == 2 && l <= 2 && l > 0 = [noBindS [| $(go) ($(i)+1) ($offset)    |]]
+                      | width == 2 && l == 3 = [noBindS [| $(go) ($(i))   ($(j)+width)|]]
+                      | l == width = [noBindS [| $(go) ($(i))   ($(j)+width)|]]
                       | l == 0     = [noBindS $ do Just return_ <- VarE <$$> lookupValueName "return"
                                                    [| $(return return_) ()   |]]
                       | otherwise  = [noBindS [| $(go) ($(i)+1) ($offset)    |]]
+        debug = [] --  [noBindS [| traceShowIO ($(i),$(j)) |]]
         widths :: Int -> [Int]             
-        widths x    = if l == width && width > 0 && width > 2^floor (logBase 2 (fromInteger $ toInteger width)) 
-                      then [ width ] else reverse $ filter (/=0) (zipWith (*) (binary x) [2^i | i <- [0..]])
+        widths x | width <= 2 && l == 1 = []
+                 | width <= 2 && l == 2 = [ 1 ]
+                 | width <= 2 && l == 3 = [ 2 ]
+                 |  l >= width && width > 0 && width > 2^floor (logBase 2 (fromInteger $ toInteger width)) 
+                      = [ width ] 
+                 | otherwise = reverse $ filter (/=0) (zipWith (*) (binary x) [2^i | i <- [0..]])
         intwidths x = [sum $ take i xs | i <- [0..length xs-1]]
           where xs = widths x
         i             = varE $ mkName "i"
@@ -137,8 +161,8 @@ readSingle :: String -> Int -> Int -> Q Stmt
 readSingle    label rowOffset colOffset 
   = do Just b <- varE <$$> lookupValueName "b"
        Just n <- varE <$$> lookupValueName "n"
-       let i = lookupVar "i"
-           j = lookupVar "j"
+       let i = lookupVar $ localVariable "i"
+           j = lookupVar $ localVariable "j"
        e <- [| VGM.unsafeRead $(b) ($(n) * ($(i) + rowOffset) + $(j) + colOffset) |]
        return $ BindS l e
           where l = BangP . VarP . mkName $ label
@@ -151,8 +175,8 @@ readRow width extra label rowOffset colOffset
     = map readRowk [0..width+extra-1]
   where readRowk k = do Just b <- varE <$$> lookupValueName "b"
                         Just n <- varE <$$> lookupValueName "n"
-                        let i = lookupVar "i"
-                            j = lookupVar "j"
+                        let i = lookupVar $ localVariable "i"
+                            j = lookupVar $ localVariable "j"
                         e <- [| VGM.unsafeRead $(b) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + k) |]
                         return $ BindS l e
           where l = BangP . VarP . mkName $ label++show k
@@ -163,8 +187,8 @@ writeRow width label rowOffset colOffset
    = map writeRowk [0..width-1]
   where writeRowk k = do Just a <- varE <$$> lookupValueName "a"
                          Just n <- varE <$$> lookupValueName "n"
-                         let i = lookupVar "i"
-                             j = lookupVar "j"
+                         let i = lookupVar $ localVariable "i"
+                             j = lookupVar $ localVariable "j"
                          e <- [| VGM.unsafeWrite $(a) ($(n) * ($(i) + rowOffset) + $(j) + colOffset + k) $(l) |]
                          return $ BindS (BangP $ TupP []) e
           where l = varE . mkName $ label++show k

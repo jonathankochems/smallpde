@@ -17,15 +17,6 @@ import Data.Primitive.SIMD (unpackVector,packVector, FloatX4)
 
 import VectorInst
 
---{-# INLINE fourIter #-} 
---fourIter !n !d !a !b !i !j  = $(stencil 4) pureStencil' n d a b i j 
---
---{-# INLINE eightIter #-} 
---eightIter !n !d !a !b !i !j = $(stencil 8) pureStencil' n d a b i j 
-
---{-# INLINE sixtIter #-} 
---sixtIter !n !d !a !b !i !j = $(stencil 16) pureStencil' n d a b i j 
-
 when True  m = m
 when False _ = return ()
 
@@ -33,14 +24,10 @@ when False _ = return ()
 --pureStencil' :: Float -> Float -> Float -> Float -> Float -> Float -> Float
 pureStencil' !d !here !east !north !west !south = 
   (1-4*d) * here + d*( north+east+west+south )
-    --where v :: FloatX4 
-          --v = packVector (north,east,west,south)
-          --s :: Float
-          --s = sumVector $ v + v 
 
 {-# INLINE solve #-}
-solve :: Int -> Int -> IO (VU.MVector (PrimState IO) Float)
-solve !n !iterations = 
+solve :: Int ->  Int -> Int -> IO (VU.MVector (PrimState IO) Float)
+solve !unroll !n !iterations = 
         do let steps :: Int
                !steps = iterations `div` 2
                d :: Float 
@@ -57,89 +44,75 @@ solve !n !iterations =
            !a <- VU.thaw a'
            !b <- VU.thaw b'
            !() <- VGM.unsafeWrite a (n*halfn + halfn) 1.0 
-           !() <- forM_ [0..steps-1] (\_ -> do
-                    !() <- onePass n d b a
-                    !() <- onePass n d a b
-                    return ()
-                 )
+           !() <- loop steps n d a b
            when (iterations `mod` 2 == 1) $ do
-             !() <- onePass n d b a
+             !() <- onePass8 n d b a
              !() <- VGM.copy a b
              return ()
            return a
-  where {-# INLINE onePass #-}
-        onePass :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
-        onePass !n !d !a !b = $(concretePass 8)  --go 1 1
-           --where go !i !j | i == n-1 = return ()
-           --               | j >= n-8 && j == n-1 = go (i+1) 1
-           --               | j >= n-8 && j == n-2 = do !() <- oneIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-3 = do !() <- twoIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-4 = do !() <- twoIter n d a b i j
-           --                                           !() <- oneIter n d a b i (j+2)
-           --                                           go (i+1) 1 
-           --               | j >= n-8 && j == n-5 = do !() <- fourIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-6 = do !() <- fourIter n d a b i j
-           --                                           !() <- oneIter n d a b i (j+4)
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-7 = do !() <- fourIter n d a b i j
-           --                                           !() <- twoIter n d a b i (j+4)
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-8 = do !() <- fourIter n d a b i j
-           --                                           !() <- twoIter n d a b i (j+4)
-           --                                           !() <- oneIter n d a b i (j+6)
-           --                                           go (i+1) 1
-           --               | otherwise            = do !() <- eightIter n d a b i j
-           --                                           go i (j+8)
-           --               {-| otherwise            = do !() <- fourIter n d a b i j
-           --                                           go i (j+4)-}
-        {-# INLINE oneIter #-} 
-        oneIter !n !d !a !b !i !j = do 
-                  !north <- VGM.unsafeRead b (n*(i+1)+j)
-                  !east  <- VGM.unsafeRead b (n*i+j-1)
-                  !here  <- VGM.unsafeRead b (n*i+j)
-                  !west  <- VGM.unsafeRead b (n*i+j+1)
-                  !south <- VGM.unsafeRead b (n*(i-1)+j)
-                  !()    <- VGM.unsafeWrite a (n*i+j) $! (1-4*d) * here  
-                                                             + d*( north
-                                                                + east
-                                                                + west
-                                                                + south
-                                                               )
-                  return()
-        {-# INLINE twoIter #-} 
-        twoIter !n !d !a !b !i !j = do 
-                  !north00 <- VGM.unsafeRead b (n*(i+1)+j)
-                  !north01 <- VGM.unsafeRead b (n*(i+1)+j+1)
-                  let !north  = north00
-                      !north' = north01
-                  !east  <- VGM.unsafeRead b (n*i+j-1)
-                  !here  <- VGM.unsafeRead b (n*i+j)
-                  !west  <- VGM.unsafeRead b (n*i+j+1)
-                  !west' <- VGM.unsafeRead b (n*i+j+2)                  
-                  !south <- VGM.unsafeRead b (n*(i-1)+j)
-                  !south'<- VGM.unsafeRead b (n*(i-1)+j+1)
-                  !()    <- VGM.unsafeWrite a (n*i+j) $! (1-4*d) * here  
-                                                             + d*( north
-                                                                + east
-                                                                + west
-                                                                + south
-                                                               )
-                  let !east' = here
-                      !here' = west
-                  !()    <- VGM.unsafeWrite a (n*i+j+1) $! (1-4*d) * here'  
-                                                             + d*( north'
-                                                                   + east'
-                                                                   + west'
-                                                                   + south'
-                                                                 )
-                  return ()
+  where loop steps n d a b 
+         | unroll == 1 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass1 n d b a
+                                !() <- onePass1 n d a b
+                                return ()
+                             )
+         | unroll == 2 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass2 n d b a
+                                !() <- onePass2 n d a b
+                                return ()
+                             )
+         | unroll == 4 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass4 n d b a
+                                !() <- onePass4 n d a b
+                                return ()
+                             )
+         | unroll == 8 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass8 n d b a
+                                !() <- onePass8 n d a b
+                                return ()
+                             )
+         | unroll == 16 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass16 n d b a
+                                !() <- onePass16 n d a b
+                                return ()
+                             )
+         | unroll == 32 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass32 n d b a
+                                !() <- onePass32 n d a b
+                                return ()
+                             )
+         | unroll == 64 = forM_ [0..steps-1] (\_ -> do
+                                !() <- onePass64 n d b a
+                                !() <- onePass64 n d a b
+                                return ()
+                             )
+        {-# INLINE onePass1 #-}    
+        onePass1 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass1 !n !d !a !b = $(concretePass 1 useEpilogues)
+        {-# INLINE onePass2 #-}    
+        onePass2 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass2 !n !d !a !b = $(concretePass 2 useEpilogues)
+        {-# INLINE onePass4 #-}    
+        onePass4 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass4 !n !d !a !b = $(concretePass 4 useEpilogues)
+        {-# INLINE onePass8 #-}    
+        onePass8 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass8 !n !d !a !b = $(concretePass 8 useEpilogues)
+        {-# INLINE onePass16 #-}    
+        onePass16 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass16 !n !d !a !b = $(concretePass 16 useEpilogues)
+        {-# INLINE onePass32 #-}    
+        onePass32 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass32 !n !d !a !b = $(concretePass 32 useEpilogues)
+        {-# INLINE onePass64 #-}    
+        onePass64 :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass64 !n !d !a !b = $(concretePass 64 useEpilogues)
 
-main = do let n :: Int
-              !n = 256
-          !a <- solve n (5*1024)
+main :: Int -> Int -> Int -> IO ()
+main !unroll !n' !steps = 
+       do let n :: Int
+              !n = n'  -- 256
+          !a <- solve unroll n steps -- (5*1024)
           forM_ [0..n-1] (\(!i) -> do
              !liness <- forM [0..n-1] (\(!j) -> do
                           !num <- VGM.unsafeRead a (n*i+j) 

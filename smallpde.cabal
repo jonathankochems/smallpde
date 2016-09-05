@@ -66,6 +66,16 @@ Flag Nooptimisations
   Default: False
   Manual: True
 
+Flag Detectspaceleaks
+  Description: Compile library plus benchmark with options that will show spaceleaks 
+  Default: False 
+  Manual: True
+
+Flag Dumpth
+  Description: Dump th 
+  Default: False 
+  Manual: True
+
 executable fdm-haskell
   -- Modules exported by the library.
   Main-is:      Main.hs
@@ -81,6 +91,7 @@ executable fdm-haskell
                        primitive,
                        primitive-simd,
                        ghc-prim,
+                       criterion,
                        smallpde
   
   -- Directories containing source files.
@@ -121,13 +132,18 @@ library
   default-language:    Haskell2010
   if flag(nooptimisations) 
     ghc-options:  -fllvm -Wall
-  else 
-    ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+  else
+    if flag(detectspaceleaks) 
+      ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -auto-all 
+    else
+      if flag(dumpth)
+        ghc-options:  -fllvm -Wall -ddump-splices
+      else
+        ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0
   hs-source-dirs:   haskell/test 
-  --, haskell/src
   main-is:          Spec.hs
   build-depends:    base,
                     hspec >= 1.3,
@@ -139,5 +155,5 @@ Test-Suite test-smallpde
                     primitive,  
                     primitive-simd,                  
                     smallpde
-  ghc-options:  -rtsopts -fllvm -optlo-O3 -optc-ffast-math -Wall
+  ghc-options:  -rtsopts -fllvm -optlo-O3 -optc-ffast-math -Wall -fsimpl-tick-factor=400
   
