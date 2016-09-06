@@ -38,6 +38,18 @@ pureStencil' !d !here !east !north !west !south =
           --s :: Float
           --s = sumVector $ v + v 
 
+indexTransform !n !i
+    | i < slice = 4*i
+    | i < 2*slice = 4*(i-slice)+1
+    | i < 3*slice = 4*(i-2*slice)+2
+    | i < 4*slice = 4*(i-3*slice)+3
+    where slice = (n+3) / 4
+
+indexTransformReverse !n !i
+       = x+(y*slice)
+    where (x,y) = i `divMod` 4
+          slice = (n+3) / 4
+
 {-# INLINE solve #-}
 solve :: Int -> Int -> IO (VU.MVector (PrimState IO) Float)
 solve !n !iterations = 
