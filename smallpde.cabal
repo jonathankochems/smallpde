@@ -100,7 +100,9 @@ library
   Exposed-Modules:      SmallpdeVector
   
   -- Modules included in this library but not exported.
-  Other-Modules:        VectorInst
+  Other-Modules:        VectorInst,
+                        Data.Vector.Unboxed.SIMD,
+                        Data.Vector.Unboxed.SIMD.Internal
                         
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    

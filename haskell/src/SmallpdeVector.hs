@@ -12,6 +12,7 @@ import Control.Monad (forM, forM_)
 import Control.Monad.Primitive (PrimState)
 import Debug.Trace(traceShow)
 import Numeric (showEFloat)
+import Data.Vector.Unboxed.SIMD as VUS
 
 import Data.Primitive.SIMD (unpackVector,packVector, FloatX4)
 
@@ -38,25 +39,63 @@ pureStencil' !d !here !east !north !west !south =
           --s :: Float
           --s = sumVector $ v + v 
 
-indexTransform !n !i
-    | i < slice = 4*i
-    | i < 2*slice = 4*(i-slice)+1
-    | i < 3*slice = 4*(i-2*slice)+2
-    | i < 4*slice = 4*(i-3*slice)+3
-    where slice = (n+3) / 4
+{-
+    The Transformation:
+    ====================
+    The original grid:
 
-indexTransformReverse !n !i
-       = x+(y*slice)
-    where (x,y) = i `divMod` 4
-          slice = (n+3) / 4
+      |                                |
+    --------------------------------------
+      |                                | 
+      |                                |
+    - |- - - - - - - - - - - - - - - - |-
+      |                                |
+      |                                |
+    - |- - - - - - - - - - - - - - - - |-
+      |                                |
+      |                                |
+    - |- - - - - - - - - - - - - - - - |-
+      |                                |
+      |                                |
+    --------------------------------------
+      |                                |
+                                       
+    The transformed grid:
+         |                                                                                                                                 |
+    --------------------------------------------------------------------------------------------------------------------------------------------
+         |                                                                                                                                 |
+         |                                                                                                                                 |
+    --------------------------------------------------------------------------------------------------------------------------------------------
+         |                                                                                                                                 |
+
+    Within the boundary
+    (i,j) -> (i% (n/4),4*j+i/(n/4))
+    
+-}
+
+width*1
+
+indexTransform !n !i !j  = (width*(i-sector*slice))+4*j+sector
+    where !slice = (n+3) `div` 4
+          !width = 4*n
+          !sector = i `div` slice
+
+indexTransformReverse width !i !j
+       = n*i' + j'
+    where !n             = width `div` 4
+          !(!j',!sector) = j `divMod` 4
+          !i'            = i+sector*n  
 
 {-# INLINE solve #-}
 solve :: Int -> Int -> IO (VU.MVector (PrimState IO) Float)
 solve !n !iterations = 
         do let steps :: Int
                !steps = iterations `div` 2
-               d :: Float 
-               !d  = dt/dx/dx 
+               d' :: Float 
+               !d'  = dt/dx/dx
+               d :: FloatX4 
+               !d  = packVector (d',d',d',d')
+
                dt :: Float
                !dt = dx*dx/4/2
                dx :: Float
@@ -64,96 +103,117 @@ solve !n !iterations =
                n' :: Float
                !n' = fromInteger $ toInteger n
                !halfn = n `div` 2
-               !a' = VU.create (do !a <- VGM.new (n*n); VGM.set a 0; return a)
-               !b' = VU.create (do !b <- VGM.new (n*n); VGM.set b 0; return b)
+               !nCeil = 4*((n+3) `div` 4)
+               !a' = VU.create (do !a <- VGM.new (nCeil*nCeil); VGM.set a 0; return a)
+               !b' = VU.create (do !b <- VGM.new (nCeil*nCeil); VGM.set b 0; return b)
            !a <- VU.thaw a'
            !b <- VU.thaw b'
-           !() <- VGM.unsafeWrite a (n*halfn + halfn) 1.0 
+           !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
            !() <- forM_ [0..steps-1] (\_ -> do
-                    !() <- onePass n d b a
-                    !() <- onePass n d a b
+                    !() <- onePass n d d' b a
+                    -- printArray n b
+                    !() <- onePass n d d' a b
+                    -- printArray n a
                     return ()
                  )
            when (iterations `mod` 2 == 1) $ do
-             !() <- onePass n d b a
+             !() <- onePass n d d' b a
+             -- printArray n b
              !() <- VGM.copy a b
              return ()
+           --printArray n a
+           --printArrayRaw n a
            return a
   where {-# INLINE onePass #-}
-        onePass :: Int -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
-        onePass !n !d !a !b = $(concretePass 8)  --go 1 1
-           --where go !i !j | i == n-1 = return ()
-           --               | j >= n-8 && j == n-1 = go (i+1) 1
-           --               | j >= n-8 && j == n-2 = do !() <- oneIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-3 = do !() <- twoIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-4 = do !() <- twoIter n d a b i j
-           --                                           !() <- oneIter n d a b i (j+2)
-           --                                           go (i+1) 1 
-           --               | j >= n-8 && j == n-5 = do !() <- fourIter n d a b i j
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-6 = do !() <- fourIter n d a b i j
-           --                                           !() <- oneIter n d a b i (j+4)
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-7 = do !() <- fourIter n d a b i j
-           --                                           !() <- twoIter n d a b i (j+4)
-           --                                           go (i+1) 1
-           --               | j >= n-8 && j == n-8 = do !() <- fourIter n d a b i j
-           --                                           !() <- twoIter n d a b i (j+4)
-           --                                           !() <- oneIter n d a b i (j+6)
-           --                                           go (i+1) 1
-           --               | otherwise            = do !() <- eightIter n d a b i j
-           --                                           go i (j+8)
-           --               {-| otherwise            = do !() <- fourIter n d a b i j
-           --                                           go i (j+4)-}
+        onePass :: Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        onePass !n !d !d' !a !b = go'' 0 1
+           where go !i !j | 4*(i+1) >= n-2 =  -- traceShow (i,j,indexTransform n i j) $ 
+                                            go' i j
+                          | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
+                                            go (i+1) 1
+                          | otherwise = do -- traceShow (i,j,indexTransform n i j) $ return ()
+                                           !() <- oneIter n d a b i j
+                                           go i (j+1)
+                 go' !i !j | 4*i >= n-2 =  -- traceShow (i,j,indexTransform n i j) $ 
+                                           return ()
+                           | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
+                                            go' (i+1) 1
+                           | otherwise = do -- traceShow (i,j,indexTransform n i j) $ return ()
+                                            !() <- oneIter' n d' a b i j
+                                            go' i (j+1)
+                 go'' !i !j | i > 0 =  -- traceShow (i,j,indexTransform n i j) $ 
+                                           go i j 
+                            | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
+                                            go'' (i+1) 1
+                            | otherwise = do -- traceShow (i,j,indexTransform n i j) $ return ()
+                                            !() <- oneIter'' n d' a b i j
+                                            go'' i (j+1)
+
         {-# INLINE oneIter #-} 
         oneIter !n !d !a !b !i !j = do 
-                  !north <- VGM.unsafeRead b (n*(i+1)+j)
-                  !east  <- VGM.unsafeRead b (n*i+j-1)
-                  !here  <- VGM.unsafeRead b (n*i+j)
-                  !west  <- VGM.unsafeRead b (n*i+j+1)
-                  !south <- VGM.unsafeRead b (n*(i-1)+j)
-                  !()    <- VGM.unsafeWrite a (n*i+j) $! (1-4*d) * here  
-                                                             + d*( north
+                  !north <- VUS.unsafeVectorisedRead b (indexTransform n (i+1) j)
+                  !east  <- VUS.unsafeVectorisedRead b (indexTransform n i (j-1))
+                  !here  <- VUS.unsafeVectorisedRead b (indexTransform n i j)
+                  !west  <- VUS.unsafeVectorisedRead b (indexTransform n i (j+1))
+                  !south <- VUS.unsafeVectorisedRead b (indexTransform n (i-1) j)
+                  !()    <- VUS.unsafeVectorisedWrite a (indexTransform n i j) $! (1-4*d) * here  
+                                                             + d*(  north
                                                                 + east
                                                                 + west
                                                                 + south
                                                                )
                   return()
-        {-# INLINE twoIter #-} 
-        twoIter !n !d !a !b !i !j = do 
-                  !north00 <- VGM.unsafeRead b (n*(i+1)+j)
-                  !north01 <- VGM.unsafeRead b (n*(i+1)+j+1)
-                  let !north  = north00
-                      !north' = north01
-                  !east  <- VGM.unsafeRead b (n*i+j-1)
-                  !here  <- VGM.unsafeRead b (n*i+j)
-                  !west  <- VGM.unsafeRead b (n*i+j+1)
-                  !west' <- VGM.unsafeRead b (n*i+j+2)                  
-                  !south <- VGM.unsafeRead b (n*(i-1)+j)
-                  !south'<- VGM.unsafeRead b (n*(i-1)+j+1)
-                  !()    <- VGM.unsafeWrite a (n*i+j) $! (1-4*d) * here  
-                                                             + d*( north
+        {-# INLINE oneIter' #-} 
+        oneIter' !n !d !a !b !i !j =  
+            forM_ [0..2] $! \j' -> do
+                  !north <- VGM.unsafeRead b $ 4*j+j'+1
+                  !east  <- VGM.unsafeRead b $ indexTransform n i (j - 1) + j'
+                  !here  <- VGM.unsafeRead b $ indexTransform n i j + j'
+                  !west  <- VGM.unsafeRead b $ indexTransform n i (j+1) + j'
+                  !south <- VGM.unsafeRead b $ indexTransform n (i-1) j + j'
+                  !()    <- VGM.unsafeWrite a (indexTransform n i j + j') $! (1-4*d) * here  
+                                                             + d*(  north
                                                                 + east
                                                                 + west
                                                                 + south
                                                                )
-                  let !east' = here
-                      !here' = west
-                  !()    <- VGM.unsafeWrite a (n*i+j+1) $! (1-4*d) * here'  
-                                                             + d*( north'
-                                                                   + east'
-                                                                   + west'
-                                                                   + south'
-                                                                 )
-                  return ()
+                  return()
+        {-# INLINE oneIter'' #-} 
+        oneIter'' !n !d !a !b !i !j =  
+            forM_ [1..3] $! \j' -> do
+                  !north <- VGM.unsafeRead b $ indexTransform n (i+1) j + j'
+                  !east  <- VGM.unsafeRead b $ indexTransform n i (j - 1) + j'
+                  !here  <- VGM.unsafeRead b $ indexTransform n i j + j'
+                  !west  <- VGM.unsafeRead b $ indexTransform n i (j+1) + j'
+                  !south <- VGM.unsafeRead b $ (4*n*(n `div` 4 - 1))+ 4*j+j'-1
+                  !()    <- VGM.unsafeWrite a (indexTransform n i j + j') $! (1-4*d) * here  
+                                                             + d*(  north
+                                                                + east
+                                                                + west
+                                                                + south
+                                                               )
+                  return()
+
+printArray n a = do forM_ [0..n-1] (\(!i) -> do
+                      --when (i `mod` slice == 0) $ putStrLn ""
+                      !liness <- forM [0..n-1] (\(!j) -> do
+                           !num <- VGM.unsafeRead a $ indexTransform n i j 
+                           return $! showEFloat (Just 5) num " ")
+                      putStrLn $! concat liness)
+                    putStrLn ""
+                    putStrLn ""
+    where !slice = (n+3) `div` 4 
+    
+printArrayRaw n a = do forM_ [0..n-1] (\(!i) -> do
+                         --when (i `mod` slice == 0) $ putStrLn ""
+                         !liness <- forM [0..n-1] (\(!j) -> do
+                              !num <- VGM.unsafeRead a $ n*i+j 
+                              return $! showEFloat (Just 5) num " ")
+                         putStrLn $! concat liness)
+                       putStrLn ""
+                       putStrLn ""
 
 main = do let n :: Int
-              !n = 256
-          !a <- solve n (5*1024)
-          forM_ [0..n-1] (\(!i) -> do
-             !liness <- forM [0..n-1] (\(!j) -> do
-                          !num <- VGM.unsafeRead a (n*i+j) 
-                          return $! showEFloat (Just 5) num " ")
-             putStrLn $! concat liness)
+              !n = 16 -- 256
+          !a <- solve n $ 16 -- 5*1024
+          printArray n a

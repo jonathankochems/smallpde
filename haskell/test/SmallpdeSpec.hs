@@ -3,6 +3,7 @@ module SmallpdeSpec (main, spec, spec1) where
 
 import Test.Hspec
 -- import qualified Smallpde 
+import SmallpdeVector (indexTransform)
 import qualified SmallpdeVector
 import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Generic as VG
@@ -51,7 +52,7 @@ spec = do
            smallVector <- SmallpdeVector.solve 16 16 >>= VU.freeze
            forM_ [0..15] $ \i -> 
               forM_ [0..15] $ \j -> 
-                  (smallVector VG.! (16*i + j)) `shouldAlmostBe` (smallBaseLine !! (i*16+j))
+                  (smallVector VG.! indexTransform 16 i j) `shouldAlmostBe` (smallBaseLine !! (i*16+j))
 
     describe "one iteration" $
       it "should work fine" $
@@ -66,11 +67,11 @@ spec = do
 --              forM_ [1..3] $ \j -> 
 --                  small ! ix2 (i-1) (j-1) `shouldBe` smallBaseLine !! (i*5+j)
            smallVector <- SmallpdeVector.solve 5 1 >>= VU.freeze
-           forM_ [0..4] $ \i -> 
+           forM_ [0..4] $ \i -> do 
               forM_ [0..4] $ \j ->
-                  --putStr $ show (smallVector VG.! (5*i + j)) ++ " "
-                  (smallVector VG.! (5*i + j)) `shouldAlmostBe` (smallBaseLine !! (i*5+j))
-              --putStrLn ""
+                  putStr $ show (smallVector VG.! indexTransform 5 i j) ++ " "
+                  -- (smallVector VG.! (5*i + j)) `shouldAlmostBe` (smallBaseLine !! (i*5+j))
+              putStrLn ""
     describe "the solution at step t" $ do 
       it "should be symmetric along the diagonal" $
         do -- small <- Smallpde.solve 17 16
