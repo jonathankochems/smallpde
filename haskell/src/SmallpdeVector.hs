@@ -73,8 +73,6 @@ pureStencil' !d !here !east !north !west !south =
     
 -}
 
-width*1
-
 indexTransform !n !i !j  = (width*(i-sector*slice))+4*j+sector
     where !slice = (n+3) `div` 4
           !width = 4*n
@@ -111,14 +109,14 @@ solve !n !iterations =
            !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
            !() <- forM_ [0..steps-1] (\_ -> do
                     !() <- onePass n d d' b a
-                    -- printArray n b
+                    --printArray n b
                     !() <- onePass n d d' a b
-                    -- printArray n a
+                    --printArray n a
                     return ()
                  )
            when (iterations `mod` 2 == 1) $ do
              !() <- onePass n d d' b a
-             -- printArray n b
+             --printArray n b
              !() <- VGM.copy a b
              return ()
            --printArray n a
@@ -128,12 +126,12 @@ solve !n !iterations =
         onePass :: Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
         onePass !n !d !d' !a !b = go'' 0 1
            where go !i !j | 4*(i+1) >= n-2 =  -- traceShow (i,j,indexTransform n i j) $ 
-                                            go' i j
-                          | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
-                                            go (i+1) 1
+                                            go' i 1
+                          | j >= 4*n-4  =  -- traceShow (i,j,indexTransform n i j) $ 
+                                            go (i+1) 4
                           | otherwise = do -- traceShow (i,j,indexTransform n i j) $ return ()
                                            !() <- oneIter n d a b i j
-                                           go i (j+1)
+                                           go i (j+4)
                  go' !i !j | 4*i >= n-2 =  -- traceShow (i,j,indexTransform n i j) $ 
                                            return ()
                            | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
@@ -142,7 +140,7 @@ solve !n !iterations =
                                             !() <- oneIter' n d' a b i j
                                             go' i (j+1)
                  go'' !i !j | i > 0 =  -- traceShow (i,j,indexTransform n i j) $ 
-                                           go i j 
+                                           go i 4 
                             | j >= n-1  =  -- traceShow (i,j,indexTransform n i j) $ 
                                             go'' (i+1) 1
                             | otherwise = do -- traceShow (i,j,indexTransform n i j) $ return ()
@@ -151,12 +149,12 @@ solve !n !iterations =
 
         {-# INLINE oneIter #-} 
         oneIter !n !d !a !b !i !j = do 
-                  !north <- VUS.unsafeVectorisedRead b (indexTransform n (i+1) j)
-                  !east  <- VUS.unsafeVectorisedRead b (indexTransform n i (j-1))
-                  !here  <- VUS.unsafeVectorisedRead b (indexTransform n i j)
-                  !west  <- VUS.unsafeVectorisedRead b (indexTransform n i (j+1))
-                  !south <- VUS.unsafeVectorisedRead b (indexTransform n (i-1) j)
-                  !()    <- VUS.unsafeVectorisedWrite a (indexTransform n i j) $! (1-4*d) * here  
+                  !north <- VUS.unsafeVectorisedRead b  $ 4*n*(i+1)+j
+                  !east  <- VUS.unsafeVectorisedRead b  $ 4*n*i+j-4
+                  !here  <- VUS.unsafeVectorisedRead b  $ 4*n*i+j
+                  !west  <- VUS.unsafeVectorisedRead b  $ 4*n*i+j+4
+                  !south <- VUS.unsafeVectorisedRead b  $ 4*n*(i-1)+j
+                  !()    <- VUS.unsafeVectorisedWrite a  (4*n*i+j) $! (1-4*d) * here  
                                                              + d*(  north
                                                                 + east
                                                                 + west
