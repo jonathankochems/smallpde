@@ -98,10 +98,10 @@ executable fdm-haskell
 library
   -- Modules exported by the library.
   Exposed-Modules:      SmallpdeVector
+                        Data.Vector.Unboxed.SIMD
   
   -- Modules included in this library but not exported.
   Other-Modules:        VectorInst,
-                        Data.Vector.Unboxed.SIMD,
                         Data.Vector.Unboxed.SIMD.Internal
                         
   -- LANGUAGE extensions used by modules in this package.

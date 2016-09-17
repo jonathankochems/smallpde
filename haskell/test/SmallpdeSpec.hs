@@ -1,5 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-module SmallpdeSpec (main, spec, spec1) where
+module SmallpdeSpec (main, spec) where
 
 import Test.Hspec
 -- import qualified Smallpde 
@@ -9,25 +9,21 @@ import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
 
-
 -- import Data.Array.Repa (ix2, (!))
+
+import qualified DataVectorUnboxedSimdSpec as DVUSS
 
 import Control.Monad
 
 main :: IO ()
-main = do hspec spec
-          hspec spec1
-
-spec1 :: Spec
-spec1 = 
-  describe "someFunction" $ 
-    it "should work fine" $ 
-      True `shouldBe` True
+main = do --hspec spec
+          --hspec spec1
+          hspec DVUSS.spec
 
 spec :: Spec
 spec = do
-    describe "" $
-      it "should work fine" $
+    describe "Smallpde" $
+      it "solution should be in line with the baseline" $
         do let smallBaseLine :: [Float]
                smallBaseLine = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
                                 0, 2.40607e-08, 2.39306e-07, 1.58853e-06, 7.39248e-06, 2.46132e-05, 5.88457e-05, 0.000100254, 0.000120089, 0.000100254, 5.88457e-05, 2.46132e-05, 7.39248e-06, 1.58848e-06, 2.37843e-07, 0,
