@@ -131,7 +131,7 @@ solve !n !iterations =
                                             go (i+4*n) 4
                           | otherwise = do -- traceShow (3,i,j,indexTransform n i j) $ return ()
                                            !() <- oneIter n d a b i j
-                                           go i (j+4)
+                                           go i (j+8)
                  go' !i !j | 4*i >= n-2 = -- traceShow (4,i,j,indexTransform n i j) $
                                            return ()
                            | j >= n-1  = -- traceShow (5,i,j,indexTransform n i j) $
@@ -149,16 +149,25 @@ solve !n !iterations =
 
         {-# INLINE oneIter #-}
         oneIter !n !d !a !b !i !j = do 
-                  !north <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j
-                  !east  <- VUS.veryunsafeVectorisedRead b  $ i+j-4
-                  !here  <- VUS.veryunsafeVectorisedRead b  $ i+j
-                  !west  <- VUS.veryunsafeVectorisedRead b  $ i+j+4
-                  !south <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j
+                  !north  <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j
+                  !north' <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j+4
+                  !east   <- VUS.veryunsafeVectorisedRead b  $ i+j-4
+                  !here   <- VUS.veryunsafeVectorisedRead b  $ i+j
+                  !west   <- VUS.veryunsafeVectorisedRead b  $ i+j+4
+                  !west'  <- VUS.veryunsafeVectorisedRead b  $ i+j+8
+                  !south  <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j
+                  !south' <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j+4
                   !()    <- VUS.veryunsafeVectorisedWrite a  (i+j) $! (1-4*d) * here  
                                                              + d*(  north
                                                                 + east
                                                                 + west
                                                                 + south
+                                                               )
+                  !()    <- VUS.veryunsafeVectorisedWrite a  (i+j+4) $! (1-4*d) * west  
+                                                             + d*(  north'
+                                                                + here
+                                                                + west'
+                                                                + south'
                                                                )
                   return()
         {-# INLINE oneIter' #-} 
