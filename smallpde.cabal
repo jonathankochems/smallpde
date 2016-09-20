@@ -92,7 +92,8 @@ executable fdm-haskell
   if flag(nooptimisations) 
     ghc-options:  -rtsopts -fllvm -Wall
   else 
-    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
+
   
 
 library
@@ -124,7 +125,7 @@ library
   if flag(nooptimisations) 
     ghc-options:  -fllvm -Wall
   else 
-    ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+    ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0

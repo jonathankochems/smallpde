@@ -73,7 +73,7 @@ pureStencil' !d !here !east !north !west !south =
     
 -}
 
-width*1
+--width*1
 
 indexTransform !n !i !j  = (width*(i-sector*slice))+4*j+sector
     where !slice = (n+3) `div` 4
@@ -214,6 +214,6 @@ printArrayRaw n a = do forM_ [0..n-1] (\(!i) -> do
                        putStrLn ""
 
 main = do let n :: Int
-              !n = 16 -- 256
-          !a <- solve n $ 16 -- 5*1024
+              !n =  256
+          !a <- solve n $  5*1024
           printArray n a
