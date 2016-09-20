@@ -27,6 +27,8 @@ import Unsafe.Coerce
 
 data FloatX4 = FloatX4# FloatX4# 
 
+
+{-# INLINE unI# #-}
 unI# :: Int -> Int#
 unI# (I# i#) = i#
 

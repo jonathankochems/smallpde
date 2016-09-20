@@ -128,8 +128,11 @@ library
   default-language:    Haskell2010
   if flag(nooptimisations) 
     ghc-options:  -fllvm -Wall
-  else 
-    ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+  else
+    if flag(dumpassembly) 
+      ghc-options: -optc-S -keep-tmp-files -tmpdir/tmp/ghc -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+    else
+      ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0

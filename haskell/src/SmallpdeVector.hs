@@ -208,6 +208,7 @@ solve !n !iterations =
             !()    <- VUS.veryunsafeVectorisedWrite a  (4*n*i+4*j) $! new' 
             return()
 
+
 printArray n a = do forM_ [0..3] $! \k -> do
                         forM_ [0..n `div` 4 -1] (\(!i) -> do
                           --when (i `mod` slice == 0) $ putStrLn ""
