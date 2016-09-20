@@ -27,8 +27,12 @@ haskell/test.exe:
 
 $(warning PERF_PROFILING: $(PERF_PROFILING) $(origin,PERF_PROFILING))
 ifeq (YES,$(PERF_PROFILING))
+SIMD_OPTS=
+ifeq (YES,$(SIMD_PROFILING))
+SIMD_OPTS=-fllvm
+endif
 PROFILING_OPTS= -g -debug -rtsopts -optc-fno-omit-frame-pointer
-GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -optlo-O3 -optc-ffast-math -optc-g
+GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -optlo-O3 -optc-ffast-math -optc-g $(SIMD_OPTS)
 else
 ifeq (YES,$(GHC_PROFILING))
 PROFILING_OPTS= -rtsopts -prof -osuf prof 
@@ -40,7 +44,8 @@ GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-thresh
 $(shell rm -rf /tmp/ghc/*)
 else
 PROFILING_OPTS= -rtsopts 
-GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math 
+GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math
+endif
 endif
 endif
 endif
@@ -56,8 +61,8 @@ TH_OPTS= -ddump-splices
 endif
 
 
-GHC_OPTS= $(GHC_OPT_OPTS) $(PROFILING_OPTS) $(FORCE_OPTS) $(TH_OPTS) -fsimpl-tick-factor=400 
-#-msse2 -optc-msse2 -optc-mfpmath=sse
+GHC_OPTS= $(GHC_OPT_OPTS) $(PROFILING_OPTS) $(FORCE_OPTS) $(TH_OPTS) -fsimpl-tick-factor=400
+#-fsimpl-tick-factor=200
 
 haskell/test-vector-prof.exe:
 	cd haskell && ghc --make -isrc -package-db=.cabal-sandbox/x86_64-osx-ghc-7.10.3-packages.conf.d src/Main.hs $(GHC_OPTS)  -o test-vector-prof.exe
