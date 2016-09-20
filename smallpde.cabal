@@ -66,6 +66,11 @@ Flag Nooptimisations
   Default: False
   Manual: True
 
+Flag Dumpassembly
+  Description: dump assembly
+  Default: False
+  Manual: True
+
 executable fdm-haskell
   -- Modules exported by the library.
   Main-is:      Main.hs
@@ -99,10 +104,10 @@ executable fdm-haskell
 library
   -- Modules exported by the library.
   Exposed-Modules:      SmallpdeVector
+                        Data.Vector.Unboxed.SIMD
   
   -- Modules included in this library but not exported.
   Other-Modules:        VectorInst,
-                        Data.Vector.Unboxed.SIMD,
                         Data.Vector.Unboxed.SIMD.Internal
                         
   -- LANGUAGE extensions used by modules in this package.
@@ -125,7 +130,11 @@ library
   if flag(nooptimisations) 
     ghc-options:  -fllvm -Wall
   else 
-    ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
+  else
+    if flag(dumpassembly) 
+      ghc-options: -optc-S -keep-tmp-files -tmpdir/tmp/ghc -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
+    else
+      ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0

@@ -1,7 +1,9 @@
 module Data.Vector.Unboxed.SIMD ( vectorisedRead
                                 , vectorisedWrite
+                                , veryunsafeVectorisedRead
                                 , unsafeVectorisedRead
                                 , unsafeVectorisedWrite
+                                , veryunsafeVectorisedWrite
                                 , shuffleUpVector
                                 , shuffleDownVector
                                 , shuffleUpFloat
@@ -9,8 +11,10 @@ module Data.Vector.Unboxed.SIMD ( vectorisedRead
 
 import Data.Vector.Unboxed.SIMD.Internal ( vectorisedRead
                                          , vectorisedWrite
+                                         , veryunsafeVectorisedRead
                                          , unsafeVectorisedRead
                                          , unsafeVectorisedWrite
+                                         , veryunsafeVectorisedWrite
                                          , shuffleUpVector
                                          , shuffleDownVector
                                          , shuffleUpFloat

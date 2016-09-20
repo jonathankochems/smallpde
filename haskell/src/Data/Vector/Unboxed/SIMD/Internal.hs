@@ -19,11 +19,16 @@ import qualified Data.Vector.Primitive as P
 import qualified Data.Primitive.SIMD as SIMD
 
 import Control.Monad(liftM,forM_)
+import Control.Monad.Primitive(primitive,primToIO)
+
+import qualified Data.Primitive.ByteArray as ByteArray
 
 import Unsafe.Coerce
 
 data FloatX4 = FloatX4# FloatX4# 
 
+
+{-# INLINE unI# #-}
 unI# :: Int -> Int#
 unI# (I# i#) = i#
 
@@ -165,10 +170,26 @@ vectorisedRead !v !i
 
 {-# INLINE unsafeVectorisedRead #-}
 unsafeVectorisedRead :: VUM.MVector RealWorld Float -> Int -> IO SIMD.FloatX4
-unsafeVectorisedRead !v !i = do !x <- v' `VUM.unsafeRead` i'
+unsafeVectorisedRead !v !i = do !x <- v' `VGM.basicUnsafeRead` i' -- v' `VUM.unsafeRead` i'
                                 return $! coerceToFloatX4 x 
   where !v' = unsafeVectorizeMUnboxedX4 v
         !i' = i `div` 4 
+
+{-# INLINE veryunsafeVectorisedRead #-}
+veryunsafeVectorisedRead :: VUM.MVector RealWorld Float -> Int -> IO SIMD.FloatX4
+veryunsafeVectorisedRead !v !i = do !x <- c 
+                                    return $! coerceToFloatX4 $!  x 
+  where !(VUB.MV_Float ((!v'') :: Data.Vector.Primitive.Mutable.MVector RealWorld Float)) = v
+        !(Data.Vector.Primitive.Mutable.MVector !len !off !arr') = v''
+        !(ByteArray.MutableByteArray arr) = arr'
+        {-# INLINE readIt #-}
+        readIt :: ByteArray.MutableByteArray# RealWorld -> Int -> State# RealWorld -> (# State# RealWorld, FloatX4 #)
+        readIt !a !i !s = case readFloatArrayAsFloatX4# a (unI# i) s of
+                          { !(# s1#, x# #) -> (# s1#, FloatX4# x# #) }
+        {-# INLINE c #-}
+        c :: IO FloatX4
+        c = primitive $ readIt arr i
+        
 
 {-# INLINE vectorisedWrite #-}
 vectorisedWrite :: VUM.MVector RealWorld Float -> Int -> SIMD.FloatX4 -> IO ()
@@ -181,11 +202,25 @@ vectorisedWrite v i a
 
 {-# INLINE unsafeVectorisedWrite #-}
 unsafeVectorisedWrite :: VUM.MVector RealWorld Float -> Int -> SIMD.FloatX4 -> IO ()
-unsafeVectorisedWrite !v !i !a = do !() <- VUM.unsafeWrite v' i' a' 
+unsafeVectorisedWrite !v !i !a = do !() <- VGM.basicUnsafeWrite v' i' a' 
                                     return ()
   where !v' = unsafeVectorizeMUnboxedX4 v
         !i' = i `div` 4 
         !a' = coerceToInternalFloatX4 a
+
+{-# INLINE veryunsafeVectorisedWrite #-}
+veryunsafeVectorisedWrite :: VUM.MVector RealWorld Float -> Int -> SIMD.FloatX4 -> IO ()
+veryunsafeVectorisedWrite !v !i !a = do !() <- c 
+                                        return ()
+  where VUB.MV_Float ((!v'') :: Data.Vector.Primitive.Mutable.MVector RealWorld Float) = v
+        !(Data.Vector.Primitive.Mutable.MVector !len !off !arr') = v''
+        !(ByteArray.MutableByteArray arr) = arr'
+        !a' = coerceToInternalFloatX4 a
+        writeIt :: ByteArray.MutableByteArray# RealWorld -> Int -> FloatX4 -> State# RealWorld -> (# State# RealWorld,()#)
+        writeIt a i (FloatX4# f) s = case writeFloatArrayAsFloatX4# arr (unI# i) f s of
+                                      { s'# -> (#s'#,()#) }
+        c :: IO ()
+        c = primitive $ writeIt arr i a'
 
 {-# INLINE shuffleDownVector #-}
 shuffleDownVector :: SIMD.FloatX4 -> SIMD.FloatX4 -> SIMD.FloatX4
