@@ -112,6 +112,7 @@ library
                         
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
+  C-sources: haskell/src/Debug.c
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4 && <5,
@@ -129,7 +130,6 @@ library
   default-language:    Haskell2010
   if flag(nooptimisations) 
     ghc-options:  -fllvm -Wall
-  else 
   else
     if flag(dumpassembly) 
       ghc-options: -optc-S -keep-tmp-files -tmpdir/tmp/ghc -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall

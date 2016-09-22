@@ -18,6 +18,9 @@ import Data.Primitive.SIMD (unpackVector,packVector, FloatX4, unsafeInsertVector
 
 import VectorInst
 
+import Foreign
+foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
+
 --{-# INLINE fourIter #-} 
 --fourIter !n !d !a !b !i !j  = $(stencil 4) pureStencil' n d a b i j 
 --
