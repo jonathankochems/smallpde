@@ -25,6 +25,9 @@ import qualified Data.Primitive.ByteArray as ByteArray
 
 import Unsafe.Coerce
 
+import Foreign
+foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
+
 data FloatX4 = FloatX4# FloatX4# 
 
 
@@ -175,21 +178,34 @@ unsafeVectorisedRead !v !i = do !x <- v' `VGM.basicUnsafeRead` i' -- v' `VUM.uns
   where !v' = unsafeVectorizeMUnboxedX4 v
         !i' = i `div` 4 
 
+convertToRawVector :: VUM.MVector RealWorld Float -> ByteArray.MutableByteArray# RealWorld      
+convertToRawVector v = arr
+  where !(VUB.MV_Float ((!v'') :: Data.Vector.Primitive.Mutable.MVector RealWorld Float)) = v
+        !(Data.Vector.Primitive.Mutable.MVector _ _ !arr') = v''
+        !(ByteArray.MutableByteArray arr) = arr'
+        
+{-# INLINE rawVectorisedRead #-}
+rawVectorisedRead :: ByteArray.MutableByteArray# RealWorld -> Int -> IO SIMD.FloatX4
+rawVectorisedRead !a !i = primitive go
+  where {-# INLINE go #-}
+        go :: State# RealWorld -> (# State# RealWorld, SIMD.FloatX4 #)
+        go !s = case readFloatArrayAsFloatX4# a (unI# i) s of
+                  { !(# s1#, x# #) -> (# s1#, coerceToFloatX4 (FloatX4# x#) #) }
+        
 {-# INLINE veryunsafeVectorisedRead #-}
 veryunsafeVectorisedRead :: VUM.MVector RealWorld Float -> Int -> IO SIMD.FloatX4
-veryunsafeVectorisedRead !v !i = do !x <- c 
+veryunsafeVectorisedRead !v !i = do !x <- read arr i
                                     return $! coerceToFloatX4 $!  x 
   where !(VUB.MV_Float ((!v'') :: Data.Vector.Primitive.Mutable.MVector RealWorld Float)) = v
         !(Data.Vector.Primitive.Mutable.MVector !len !off !arr') = v''
         !(ByteArray.MutableByteArray arr) = arr'
-        {-# INLINE readIt #-}
-        readIt :: ByteArray.MutableByteArray# RealWorld -> Int -> State# RealWorld -> (# State# RealWorld, FloatX4 #)
-        readIt !a !i !s = case readFloatArrayAsFloatX4# a (unI# i) s of
+        {-# INLINE read #-}
+        read :: ByteArray.MutableByteArray# RealWorld -> Int -> IO FloatX4
+        read !a !i = primitive go
+          where {-# INLINE go #-}
+                go :: State# RealWorld -> (# State# RealWorld, FloatX4 #)
+                go !s = case readFloatArrayAsFloatX4# a (unI# i) s of
                           { !(# s1#, x# #) -> (# s1#, FloatX4# x# #) }
-        {-# INLINE c #-}
-        c :: IO FloatX4
-        c = primitive $ readIt arr i
-        
 
 {-# INLINE vectorisedWrite #-}
 vectorisedWrite :: VUM.MVector RealWorld Float -> Int -> SIMD.FloatX4 -> IO ()

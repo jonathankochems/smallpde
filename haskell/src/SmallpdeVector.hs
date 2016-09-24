@@ -13,7 +13,8 @@ import Control.Monad (forM, forM_)
 import Control.Monad.Primitive (PrimState)
 import Debug.Trace(traceShow)
 import Numeric (showEFloat)
-import Data.Vector.Unboxed.SIMD as VUS
+import qualified Data.Vector.Unboxed.SIMD as VUS
+import qualified Data.Vector.Unboxed.SIMD.Internal as VUSI
 
 import Data.Primitive.SIMD (unpackVector,packVector, FloatX4, unsafeInsertVector)
 
@@ -173,12 +174,12 @@ solve !n !iterations =
 
         {-# INLINE oneIter #-}
         oneIter !n !d !a !b !i !j = do
-                  --perf_marker
-                  !north  <-  VUS.veryunsafeVectorisedRead b  $ i+4*n+j
-                  !east   <- VUS.veryunsafeVectorisedRead b  $ i+j-4
-                  !here   <- VUS.veryunsafeVectorisedRead b  $ i+j
-                  !west   <- VUS.veryunsafeVectorisedRead b  $ i+j+4
-                  !south  <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j
+                  let rawb = VUSI.convertToRawVector b 
+                  !north  <-  VUSI.rawVectorisedRead rawb  $ i+4*n+j
+                  !east   <-  VUSI.rawVectorisedRead rawb  $ i+j-4
+                  !here   <-  VUSI.rawVectorisedRead rawb  $ i+j
+                  !west   <-  VUSI.rawVectorisedRead rawb  $ i+j+4
+                  !south  <-  VUSI.rawVectorisedRead rawb  $ i-4*n+j
                   !()    <- VUS.veryunsafeVectorisedWrite a  (i+j) $! (1-4*d) * here  
                                                              + d*(  north
                                                                 + east
@@ -186,9 +187,9 @@ solve !n !iterations =
                                                                 + south
                                                                )
                   --perf_marker
-                  !north' <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j+4
-                  !west'  <- VUS.veryunsafeVectorisedRead b  $ i+j+8
-                  !south' <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j+4
+                  !north' <- VUSI.rawVectorisedRead rawb  $ i+4*n+j+4
+                  !west'  <- VUSI.rawVectorisedRead rawb  $ i+j+8
+                  !south' <- VUSI.rawVectorisedRead rawb  $ i-4*n+j+4
                   !()    <- VUS.veryunsafeVectorisedWrite a  (i+j+4) $! (1-4*d) * west  
                                                              + d*(  north'
                                                                 + here
