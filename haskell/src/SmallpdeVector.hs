@@ -160,14 +160,15 @@ solve !n !iterations =
            !a <- VU.unsafeThaw a'
            !b <- VU.unsafeThaw b'
            !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
-           !() <- forM_ [0..steps-1] (\_ -> do
-                    --perf_marker
-                    !() <- onePass n d d' b a
-                    -- printArray n b
-                    !() <- onePass n d d' a b
-                    -- printArray n a
-                    return ()
-                 )
+           !() <- timeloop steps n d d' a b
+           -- !() <- forM_ [0..steps-1] (\_ -> do
+           --          --perf_marker
+           --          !() <- onePass n d d' b a
+           --          -- printArray n b
+           --          !() <- onePass n d d' a b
+           --          -- printArray n a
+           --          return ()
+           --       )
            !() <-  when (iterations `mod` 2 == 1) $ do
                     !() <- onePass n d d' b a
                     -- printArray n b
@@ -176,7 +177,17 @@ solve !n !iterations =
            -- printArray n a
            -- printArrayRaw n a
            return a
-  where {-# INLINE onePass #-}
+  where {-# INLINE timeloop #-}
+        timeloop :: Int -> Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        timeloop !steps !n !d !d' !a !b = go 0 
+          where go !i | i < steps = do --perf_marker
+                                       !() <- onePass n d d' b a
+                                       -- printArray n b
+                                       !() <- onePass n d d' a b
+                                       -- printArray n a
+                                       go (i+1)
+                      | otherwise = return ()
+        {-# INLINE onePass #-}
         onePass :: Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
         onePass !n !d !d' !a !b = go'' 0 1
            where go !i !j | i+4*n >= n*n-2 = -- traceShow (1,i,j,indexTransform n i j) $ 
@@ -269,20 +280,15 @@ solve !n !iterations =
             return()
 
 
-printArray n a = do forM_ [0..3] $! \k -> do
-                        --perf_marker
-                        !() <- forM_ [0..n `div` 4 -1] (\(!i) -> do
-                                 --perf_marker
-                                 --when (i `mod` slice == 0) $ putStrLn ""
-                                 !liness <- forM [0..n-1] (\(!j) -> do
-                                              !num <- VGM.unsafeRead a $ 4*n*i+4*j+k
-                                              --perf_marker
-                                              return $! showEFloat (Just 5) num " ")
-                                 putStrLn $! concat liness)
-                        return ()
-                    putStrLn ""
-                    putStrLn ""
+printArray n a = go 0 0 (n-1) "" 
     where !slice = (n+3) `div` 4
+          go !k !i !j !line | k >= 4 = do putStrLn ""
+                                          putStrLn ""
+                            | i >= n `div` 4 = go (k+1) 0 (n-1) ""
+                            | j >= 0 = do !num <- VGM.unsafeRead a $ 4*n*i+4*j+k
+                                          go k i (j-1) $! (showEFloat (Just 5) num " "++line)
+                            | j < 0  = do putStrLn line
+                                          go k (i+1) (n-1) ""
     
 printArrayRaw n a = do forM_ [0..n-1] (\(!i) -> do
                          --when (i `mod` slice == 0) $ putStrLn ""
