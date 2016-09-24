@@ -48,7 +48,6 @@ GHC_OPT_OPTS= -optc-march=native -Odph -fno-liberate-case -funfolding-use-thresh
 endif
 endif
 endif
-endif
 
 FORCE_OPTS=
 ifeq (YES,$(FORCE_COMPILE))
@@ -65,7 +64,7 @@ GHC_OPTS= $(GHC_OPT_OPTS) $(PROFILING_OPTS) $(FORCE_OPTS) $(TH_OPTS) -fsimpl-tic
 #-fsimpl-tick-factor=200
 
 haskell/test-vector-prof.exe:
-	cd haskell && ghc --make -isrc -package-db=.cabal-sandbox/x86_64-osx-ghc-7.10.3-packages.conf.d src/Main.hs $(GHC_OPTS)  -o test-vector-prof.exe
+	cd haskell && ghc --make -isrc -package-db=.cabal-sandbox/x86_64-linux-ghc-7.10.3-packages.conf.d bench/Main.hs $(GHC_OPTS)  -o test-vector-prof.exe
 
 haskell/tests:
 	cd haskell && PATH=.cabal-sandbox/bin:$$PATH ghc --make -isrc -itest -package-db=.cabal-sandbox/x86_64-osx-ghc-7.10.3-packages.conf.d test/Spec.hs $(GHC_OPTS) && test/Spec
@@ -77,7 +76,7 @@ var:
 	@echo $($(v))
 
 haskell/test-vector-prof.assembly:
-	cd haskell && ghc-core -- --make -isrc -package-db=.cabal-sandbox/x86_64-osx-ghc-7.10.3-packages.conf.d $(GHC_OPTS) src/Main.hs  
+	cd haskell && ghc-core -- --make -isrc -package-db=.cabal-sandbox/x86_64-linux-ghc-7.10.3-packages.conf.d $(GHC_OPTS) src/Main.hs  
 
 
 clean:

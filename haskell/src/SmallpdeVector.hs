@@ -3,12 +3,13 @@
 
 module SmallpdeVector where
 
-import Prelude hiding (read)
+import Prelude hiding (read,mapM_,mapM,foldr)
 import Data.List (intercalate)
+import qualified Data.List as List
 import qualified Data.Vector.Generic.Mutable as VGM
 import qualified Data.Vector.Unboxed as VU
 import Data.Vector.Generic.Mutable(new, read, write, unsafeRead, unsafeWrite, set)
-import Control.Monad (forM, forM_)
+-- import Control.Monad (forM{-, forM_-})
 import Control.Monad.Primitive (PrimState)
 import Debug.Trace(traceShow)
 import Numeric (showEFloat)
@@ -17,9 +18,15 @@ import Data.Vector.Unboxed.SIMD as VUS
 import Data.Primitive.SIMD (unpackVector,packVector, FloatX4, unsafeInsertVector)
 
 import VectorInst
+import System.IO.Unsafe(unsafePerformIO)
 
 import Foreign
 foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
+
+{-# INLINE unsafePurePerfMarker#-}
+unsafePurePerfMarker :: a -> a
+unsafePurePerfMarker x = (unsafePerformIO perf_marker) `seq` x
+
 
 --{-# INLINE fourIter #-} 
 --fourIter !n !d !a !b !i !j  = $(stencil 4) pureStencil' n d a b i j 
@@ -32,6 +39,49 @@ foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
 
 when True  m = m
 when False _ = return ()
+
+
+--foldr            :: (a -> b -> b) -> b -> [a] -> b
+-- foldr _ z []     =  z
+-- foldr f z (x:xs) =  f x (foldr f z xs)
+{-# INLINE [0] foldr #-}
+-- Inline only in the final stage, after the foldr/cons rule has had a chance
+-- Also note that we inline it when it has *two* parameters, which are the
+-- ones we are keen about specialising!
+foldr k z = go
+          where
+            --go :: [a] -> b
+            go []     = z
+            go (y:ys) = unsafePurePerfMarker ( y `k` go ys )
+
+
+mapM_ :: (a -> IO b) -> [a] -> IO ()
+mapM_ f= foldr ((>>) . f') (return ())
+  where {-# INLINE f' #-}
+        f' x = do perf_marker
+                  f x
+-- | 'forM_' is 'mapM_' with its arguments flipped. For a version that
+-- doesn't ignore the results see 'Data.Traversable.forM'.
+--
+-- As of base 4.8.0.0, 'forM_' is just 'for_', specialized to 'Monad'.
+forM_ :: [a] -> (a -> IO b) -> IO ()
+{-# INLINE forM_ #-}
+forM_ = flip mapM_
+
+-- | 'forM' is 'mapM' with its arguments flipped. For a version that
+-- ignores the results see 'Data.Foldable.forM_'.
+forM ::  [a] -> (a -> IO b) -> IO [b]
+{-# INLINE forM #-}
+forM = flip mapM
+
+{-# INLINE mapM #-} -- so that traverse can fuse
+mapM ::  (a -> IO b) -> [a] -> IO [b]
+mapM f = foldr cons_f (pure [])
+  where {-# INLINE cons_f #-}
+        cons_f x ys = (:) <$> f' x <*> ys
+        {-# INLINE f' #-}
+        f' x = do perf_marker
+                  f x
 
 {-# INLINE pureStencil' #-}
 --pureStencil' :: Float -> Float -> Float -> Float -> Float -> Float -> Float
@@ -105,23 +155,24 @@ solve !n !iterations =
                !n' = fromInteger $ toInteger n
                !halfn = n `div` 2
                !nCeil = 4*((n+3) `div` 4)
-               !a' = VU.create (do !a <- VGM.new (nCeil*nCeil); VGM.set a 0; return a)
-               !b' = VU.create (do !b <- VGM.new (nCeil*nCeil); VGM.set b 0; return b)
-           !a <- VU.thaw a'
-           !b <- VU.thaw b'
+               !a' = VU.create (do !a <- VGM.unsafeNew (nCeil*nCeil); VGM.set a 0; return a)
+               !b' = VU.create (do !b <- VGM.unsafeNew (nCeil*nCeil); VGM.set b 0; return b)
+           !a <- VU.unsafeThaw a'
+           !b <- VU.unsafeThaw b'
            !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
            !() <- forM_ [0..steps-1] (\_ -> do
+                    perf_marker
                     !() <- onePass n d d' b a
                     -- printArray n b
                     !() <- onePass n d d' a b
                     -- printArray n a
                     return ()
                  )
-           when (iterations `mod` 2 == 1) $ do
-             !() <- onePass n d d' b a
-             -- printArray n b
-             !() <- VGM.copy a b
-             return ()
+           !() <-  when (iterations `mod` 2 == 1) $ do
+                    !() <- onePass n d d' b a
+                    -- printArray n b
+                    !() <- VGM.unsafeCopy a b
+                    return ()
            -- printArray n a
            -- printArrayRaw n a
            return a
@@ -141,6 +192,7 @@ solve !n !iterations =
                                             go' (i+1) 1
                            | otherwise = do -- traceShow (6,i,j,indexTransform n i j) $ return ()
                                             !() <- oneIter' n d a b i j
+                                            perf_marker
                                             go' i (j+1)
                  go'' !i !j | i > 0 = -- traceShow (7,i,j,indexTransform n i j) $
                                            go (4*n) 4
@@ -148,24 +200,27 @@ solve !n !iterations =
                                             go'' (i+1) 1
                             | otherwise = do -- traceShow (9,i,j,indexTransform n i j) $ return ()
                                              !() <- oneIter'' n d a b i j
+                                             perf_marker
                                              go'' i (j+1)
 
         {-# INLINE oneIter #-}
-        oneIter !n !d !a !b !i !j = do 
-                  !north  <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j
-                  !north' <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j+4
+        oneIter !n !d !a !b !i !j = do
+                  perf_marker
+                  !north  <-  VUS.veryunsafeVectorisedRead b  $ i+4*n+j
                   !east   <- VUS.veryunsafeVectorisedRead b  $ i+j-4
                   !here   <- VUS.veryunsafeVectorisedRead b  $ i+j
                   !west   <- VUS.veryunsafeVectorisedRead b  $ i+j+4
-                  !west'  <- VUS.veryunsafeVectorisedRead b  $ i+j+8
                   !south  <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j
-                  !south' <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j+4
                   !()    <- VUS.veryunsafeVectorisedWrite a  (i+j) $! (1-4*d) * here  
                                                              + d*(  north
                                                                 + east
                                                                 + west
                                                                 + south
                                                                )
+                  perf_marker
+                  !north' <- VUS.veryunsafeVectorisedRead b  $ i+4*n+j+4
+                  !west'  <- VUS.veryunsafeVectorisedRead b  $ i+j+8
+                  !south' <- VUS.veryunsafeVectorisedRead b  $ i-4*n+j+4
                   !()    <- VUS.veryunsafeVectorisedWrite a  (i+j+4) $! (1-4*d) * west  
                                                              + d*(  north'
                                                                 + here
@@ -190,6 +245,7 @@ solve !n !iterations =
                                            )
                 !new'= unsafeInsertVector new 0 3
             !()    <- VUS.veryunsafeVectorisedWrite a  (4*n*i+4*j) $! new' 
+	    perf_marker
             return()
 
         {-# INLINE oneIter'' #-} 
@@ -209,16 +265,21 @@ solve !n !iterations =
                                            )
                 !new'= unsafeInsertVector new 0 0
             !()    <- VUS.veryunsafeVectorisedWrite a  (4*n*i+4*j) $! new' 
+	    perf_marker
             return()
 
 
 printArray n a = do forM_ [0..3] $! \k -> do
-                        forM_ [0..n `div` 4 -1] (\(!i) -> do
-                          --when (i `mod` slice == 0) $ putStrLn ""
-                          !liness <- forM [0..n-1] (\(!j) -> do
-                               !num <- VGM.unsafeRead a $ 4*n*i+4*j+k
-                               return $! showEFloat (Just 5) num " ")
-                          putStrLn $! concat liness)
+                        perf_marker
+                        !() <- forM_ [0..n `div` 4 -1] (\(!i) -> do
+                                 perf_marker
+                                 --when (i `mod` slice == 0) $ putStrLn ""
+                                 !liness <- forM [0..n-1] (\(!j) -> do
+                                              !num <- VGM.unsafeRead a $ 4*n*i+4*j+k
+                                              perf_marker
+                                              return $! showEFloat (Just 5) num " ")
+                                 putStrLn $! concat liness)
+                        return ()
                     putStrLn ""
                     putStrLn ""
     where !slice = (n+3) `div` 4
@@ -226,8 +287,9 @@ printArray n a = do forM_ [0..3] $! \k -> do
 printArrayRaw n a = do forM_ [0..n-1] (\(!i) -> do
                          --when (i `mod` slice == 0) $ putStrLn ""
                          !liness <- forM [0..n-1] (\(!j) -> do
-                              !num <- VGM.unsafeRead a $ n*i+j 
-                              return $! showEFloat (Just 5) num " ")
+                                      !num <- VGM.unsafeRead a $ n*i+j 
+                                      perf_marker
+                                      return $! showEFloat (Just 5) num " ")
                          putStrLn $! concat liness)
                        putStrLn ""
                        putStrLn ""

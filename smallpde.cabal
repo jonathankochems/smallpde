@@ -97,7 +97,7 @@ executable fdm-haskell
   if flag(nooptimisations) 
     ghc-options:  -rtsopts -fllvm -Wall
   else 
-    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
+    ghc-options:  -rtsopts -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g -optc-fverbose-asm
 
   
 
@@ -134,7 +134,7 @@ library
     if flag(dumpassembly) 
       ghc-options: -optc-S -keep-tmp-files -tmpdir/tmp/ghc -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
     else
-      ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g
+      ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -debug -rtsopts -optc-fno-omit-frame-pointer -optc-g -optc-fverbose-asm
 
 Test-Suite test-smallpde
   type:             exitcode-stdio-1.0
