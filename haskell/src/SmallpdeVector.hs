@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleContexts,GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, BangPatterns, TemplateHaskell, QuasiQuotes, ScopedTypeVariables, FlexibleContexts, GADTs, MagicHash #-}
 {-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 
 module SmallpdeVector where
@@ -156,10 +156,10 @@ solve !n !iterations =
                !n' = fromInteger $ toInteger n
                !halfn = n `div` 2
                !nCeil = 4*((n+3) `div` 4)
-               !a' = VU.create (do !a <- VGM.unsafeNew (nCeil*nCeil); VGM.set a 0; return a)
-               !b' = VU.create (do !b <- VGM.unsafeNew (nCeil*nCeil); VGM.set b 0; return b)
-           !a <- VU.unsafeThaw a'
-           !b <- VU.unsafeThaw b'
+               !a' = VU.create (do !a <- VGM.new (nCeil*nCeil); VGM.set a 0; return a)
+               !b' = VU.create (do !b <- VGM.new (nCeil*nCeil); VGM.set b 0; return b)
+           !a <- VU.thaw a'
+           !b <- VU.thaw b'
            !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
            !() <- timeloop steps n d d' a b
            -- !() <- forM_ [0..steps-1] (\_ -> do
@@ -182,6 +182,7 @@ solve !n !iterations =
         timeloop :: Int -> Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
         timeloop !steps !n !d !d' !a !b = go 0 
           where go !i | i < steps = do --perf_marker
+                                       -- printArray n a
                                        !() <- onePass n d d' b a
                                        -- printArray n b
                                        !() <- onePass n d d' a b
@@ -217,29 +218,36 @@ solve !n !iterations =
 
         {-# INLINE oneIter #-}
         oneIter !n !d !a !b !i !j = do
-                  let rawb = VUSI.convertToRawVector b 
-                  !north  <-  VUSI.rawVectorisedRead rawb  $ i+4*n+j
-                  !east   <-  VUSI.rawVectorisedRead rawb  $ i+j-4
-                  !here   <-  VUSI.rawVectorisedRead rawb  $ i+j
-                  !west   <-  VUSI.rawVectorisedRead rawb  $ i+j+4
-                  !south  <-  VUSI.rawVectorisedRead rawb  $ i-4*n+j
-                  !()    <- VUS.veryunsafeVectorisedWrite a  (i+j) $! (1-4*d) * here  
-                                                             + d*(  north
-                                                                + east
-                                                                + west
-                                                                + south
-                                                               )
+                  let rawb = VUSI.convertToRawVector b
+                      rawa = VUSI.convertToRawVector a
+                  VUSI.rawVectorisedStencil n d# d'# rawa rawb i j 
+                  --VUSI.rawVectorisedStencil n d# d'# rawa rawb i (j+4) 
+                  -- !north  <-  VUSI.rawVectorisedRead rawb  $ i+4*n+j
+                  -- !east   <-  VUSI.rawVectorisedRead rawb  $ i+j-4
+                  -- !here   <-  VUSI.rawVectorisedRead rawb  $ i+j
+                  -- !west   <-  VUSI.rawVectorisedRead rawb  $ i+j+4
+                  -- !south  <-  VUSI.rawVectorisedRead rawb  $ i-4*n+j
+                  -- !()    <- VUS.veryunsafeVectorisedWrite a  (i+j) $! (1-4*d) * here  
+                  --                                            + d*(  north
+                  --                                               + east
+                  --                                               + west
+                  --                                               + south
+                  --                                              )
                   --perf_marker
-                  !north' <- VUSI.rawVectorisedRead rawb  $ i+4*n+j+4
-                  !west'  <- VUSI.rawVectorisedRead rawb  $ i+j+8
-                  !south' <- VUSI.rawVectorisedRead rawb  $ i-4*n+j+4
-                  !()    <- VUS.veryunsafeVectorisedWrite a  (i+j+4) $! (1-4*d) * west  
-                                                             + d*(  north'
-                                                                + here
-                                                                + west'
-                                                                + south'
-                                                               )
-                  return()
+                  -- !north' <- VUSI.rawVectorisedRead rawb  $ i+4*n+j+4
+                  -- !here   <- VUSI.rawVectorisedRead rawb  $ i+j
+                  -- !west   <- VUSI.rawVectorisedRead rawb  $ i+j+4
+                  -- !west'  <- VUSI.rawVectorisedRead rawb  $ i+j+8
+                  -- !south' <- VUSI.rawVectorisedRead rawb  $ i-4*n+j+4
+                  -- !()    <- VUS.veryunsafeVectorisedWrite a  (i+j+4) $! (1-4*d) * west  
+                  --                                            + d*(  north'
+                  --                                               + here
+                  --                                               + west'
+                  --                                               + south'
+                  --                                              )
+                  -- return()
+           where !(VUSI.FloatX4# d#) = VUSI.coerceToInternalFloatX4 d
+                 !(VUSI.FloatX4# d'#) = VUSI.coerceToInternalFloatX4 $! (1-4*d)
         {-# INLINE oneIter' #-} 
         oneIter' !n !d !a !b !i !j = do
             !north0 <- VGM.unsafeRead b $ 4*j+1

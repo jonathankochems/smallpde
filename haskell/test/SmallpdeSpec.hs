@@ -20,6 +20,11 @@ main = do --hspec spec
           --hspec spec1
           hspec DVUSS.spec
 
+spec1 :: Spec
+spec1 = do describe "Smallpde" $
+            it "solution should be in line with the baseline" $
+               True `shouldBe` True
+
 spec :: Spec
 spec = do
     describe "Smallpde" $
@@ -53,50 +58,52 @@ spec = do
     describe "one iteration" $
       it "should work fine" $
         do let smallBaseLine :: [Float]
-               smallBaseLine = [0, 0,     0,     0,     0, 
-                                0, 0,     0.125, 0,     0,
-                                0, 0.125, 0.5,   0.125, 0,
-                                0, 0,     0.125, 0,     0,                                
-                                0, 0,     0,     0,     0] 
---           small <- Smallpde.solve 3 1
---           forM_ [1..3] $ \i -> 
---              forM_ [1..3] $ \j -> 
---                  small ! ix2 (i-1) (j-1) `shouldBe` smallBaseLine !! (i*5+j)
-           smallVector <- SmallpdeVector.solve 5 1 >>= VU.freeze
-           forM_ [0..4] $ \i -> do 
-              forM_ [0..4] $ \j ->
-                  putStr $ show (smallVector VG.! indexTransform 5 i j) ++ " "
-                  -- (smallVector VG.! (5*i + j)) `shouldAlmostBe` (smallBaseLine !! (i*5+j))
-              putStrLn ""
+               smallBaseLine = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.5, 0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
+           smallVector <- SmallpdeVector.solve 16 1 >>= VU.freeze
+           forM_ [0..3] $ \k -> do
+             forM_ [0..3] $ \i -> do 
+                forM_ [0..15] $ \j ->
+                    -- putStr $ show (smallVector VG.! (4*16*i+4*j+k)) ++ " "
+                    (smallVector VG.! (4*16*i+4*j+k)) `shouldAlmostBe` (smallBaseLine !! ((4*k+i)*16+j))
+                -- putStrLn ""
     describe "the solution at step t" $ do 
       it "should be symmetric along the diagonal" $
-        do -- small <- Smallpde.solve 17 16
---           forM_ [0..16] $ \i -> 
---              forM_ [0..i] $ \j -> 
---                  (small ! ix2 i j) `shouldAlmostBe` (small ! ix2 j i)
-           smallVector <- SmallpdeVector.solve 19 16 >>= VU.freeze
-           forM_ [0..18] $ \i -> 
-              forM_ [0..i] $ \j -> 
-                  (smallVector VG.! (19*i + j)) `shouldAlmostBe` (smallVector VG.! (19*j + i))
+        do smallVector <- SmallpdeVector.solve 20 8 >>= VU.freeze
+           forM_ [0..3] $ \k -> do
+             forM_ [0..4] $ \i -> do 
+              forM_ [0..(5*k+i)] $ \j -> do 
+                 let j'      = 5*k+i
+                     (k',i') = j `divMod` 5
+                 (smallVector VG.! (4*20*i+4*j+k)) `shouldAlmostBe` (smallVector VG.! (4*20*i'+4*j'+k'))
       it "should be symmetric along the y-axis" $ 
-        do -- small <- Smallpde.solve 17 16
---           forM_ [0..8] $ \i -> 
---              forM_ [0..16] $ \j -> 
---                  (small ! ix2 i j) `shouldAlmostBe` (small ! ix2 (16-i) j)
-           smallVector <- SmallpdeVector.solve 19 16 >>= VU.freeze
-           forM_ [0..9] $ \i -> 
-              forM_ [0..18] $ \j -> 
-                  (smallVector VG.! (19*i + j)) `shouldAlmostBe` (smallVector VG.! (19*(18-i) + j))
+        do smallVector <- SmallpdeVector.solve 20 7 >>= VU.freeze
+           forM_ [0..1] $ \k -> do
+             forM_ [0..4] $ \i -> do 
+               forM_ [0..19] $ \j -> do
+                 let (k',i')      = (5*(3-k)+(4-i)+1) `divMod` 5
+                     j' = j
+                 (smallVector VG.! (4*20*i+4*j+k)) `shouldAlmostBe` (smallVector VG.! (4*20*i'+4*j'+k'))
       it "should be symmetric along the x-axis" $ 
-        do -- small <- Smallpde.solve 17 16
-           -- forM_ [0..16] $ \i -> 
-           --   forM_ [0..8] $ \j -> 
-           --       (small ! ix2 i j) `shouldAlmostBe` (small ! ix2 i (16-j))       
-           smallVector <- SmallpdeVector.solve 19 16 >>= VU.freeze
-           forM_ [0..18] $ \i -> 
-              forM_ [0..9] $ \j -> 
-                  (smallVector VG.! (19*i + j)) `shouldAlmostBe` (smallVector VG.! (19*i + 18-j))
- 
+        do smallVector <- SmallpdeVector.solve 20 7 >>= VU.freeze
+           forM_ [0..3] $ \k -> do
+             forM_ [0..4] $ \i -> do 
+               forM_ [0..9] $ \j -> do
+                 (smallVector VG.! (4*20*i+4*(j+1)+k)) `shouldAlmostBe` (smallVector VG.! (4*20*i+4*(19-j)+k))
 
 
 shouldAlmostBe x y | diff < tolerance = True `shouldBe` True

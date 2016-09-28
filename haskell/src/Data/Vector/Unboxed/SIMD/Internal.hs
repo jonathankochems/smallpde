@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples, ScopedTypeVariables,TypeFamilies,MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 module Data.Vector.Unboxed.SIMD.Internal where
 
 import GHC.Prim
@@ -19,7 +20,7 @@ import qualified Data.Vector.Primitive as P
 import qualified Data.Primitive.SIMD as SIMD
 
 import Control.Monad(liftM,forM_)
-import Control.Monad.Primitive(primitive,primToIO)
+import Control.Monad.Primitive(primitive,primToIO,internal)
 
 import qualified Data.Primitive.ByteArray as ByteArray
 
@@ -28,7 +29,7 @@ import Unsafe.Coerce
 import Foreign
 foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
 
-data FloatX4 = FloatX4# FloatX4# 
+data FloatX4 = FloatX4# FloatX4#
 
 
 {-# INLINE unI# #-}
@@ -191,7 +192,51 @@ rawVectorisedRead !a !i = primitive go
         go :: State# RealWorld -> (# State# RealWorld, SIMD.FloatX4 #)
         go !s = case readFloatArrayAsFloatX4# a (unI# i) s of
                   { !(# s1#, x# #) -> (# s1#, coerceToFloatX4 (FloatX4# x#) #) }
-        
+
+{-# INLINE rawVectorisedStencil #-}
+rawVectorisedStencil :: Int -> FloatX4# -> FloatX4# -> ByteArray.MutableByteArray# RealWorld -> ByteArray.MutableByteArray# RealWorld -> Int -> Int -> IO ()
+rawVectorisedStencil !n !d# !d'# !a !b !i !j = primitive go
+  where index#  = unI# (i+j)
+        row#    = unI# (4*n)
+        offset# = unI# 4
+        --printOp s = internal $ putStrLn s 
+        {-# INLINE go #-}
+        go :: State# RealWorld -> (# State# RealWorld, () #)
+        go !s = case readFloatArrayAsFloatX4# b (index# +# row#) s of
+                 !(# s1#, north# #) -> 
+                  case readFloatArrayAsFloatX4# b (index# -# offset#) s1# of
+                   !(# s2#, east# #) -> 
+                    case readFloatArrayAsFloatX4# b index# s2# of
+                     !(# s3#, here# #) -> 
+                      case readFloatArrayAsFloatX4# b (index# +# offset#) s3# of
+                       !(# s4#, west# #) -> 
+                        case readFloatArrayAsFloatX4# b (index# -# row#) s4# of
+                         !(# s5#, south# #) -> 
+                          case writeFloatArrayAsFloatX4# a index# ((d'# `timesFloatX4#` here#)  
+                                                                    `plusFloatX4#` 
+                                                                      (d# `timesFloatX4#`(  north#
+                                                                           `plusFloatX4#` east#
+                                                                           `plusFloatX4#` west#
+                                                                           `plusFloatX4#` south#
+                                                                           )
+                                                                            )) s5# of
+                           !s6# -> -- (# s6#, () #) 
+                            case readFloatArrayAsFloatX4# b (index# +# row# +# offset#) s6# of
+                             !(# s7#, north'# #) -> 
+                              case readFloatArrayAsFloatX4# b (index# +# offset# +# offset#) s7# of
+                               !(# s8#, west'# #) -> 
+                                case readFloatArrayAsFloatX4# b (index# -# row# +# offset#) s8# of
+                                 !(# s9#, south'# #) -> 
+                                  case writeFloatArrayAsFloatX4# a (index# +# offset#) 
+                                                                      ((d'# `timesFloatX4#` west#)  
+                                                                            `plusFloatX4#` 
+                                                                              (d# `timesFloatX4#`(  north'#
+                                                                                   `plusFloatX4#` here#
+                                                                                   `plusFloatX4#` west'#
+                                                                                   `plusFloatX4#` south'#
+                                                                                   )
+                                                                            ))  s9# of
+                                   !s10# -> (# s10#, () #)
 {-# INLINE veryunsafeVectorisedRead #-}
 veryunsafeVectorisedRead :: VUM.MVector RealWorld Float -> Int -> IO SIMD.FloatX4
 veryunsafeVectorisedRead !v !i = do !x <- read arr i
