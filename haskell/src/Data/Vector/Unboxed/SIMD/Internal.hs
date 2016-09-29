@@ -26,8 +26,8 @@ import qualified Data.Primitive.ByteArray as ByteArray
 
 import Unsafe.Coerce
 
-import Foreign
-foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
+--import Foreign
+--foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
 
 data FloatX4 = FloatX4# FloatX4#
 
