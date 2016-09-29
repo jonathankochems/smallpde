@@ -11,11 +11,22 @@ import Data.Vector.Unboxed.SIMD as VUS
 import qualified Data.Vector.Unboxed.SIMD.Internal as VUSI
 import Data.Primitive.SIMD (unpackVector,packVector, FloatX4, unsafeInsertVector)
 
+import GHC.Prim
+import GHC.Int
+
 spec :: Spec
 spec = do let floatList :: [Float]
               floatList = [0..127]
               floatVector :: VU.Vector Float
               floatVector = VU.fromList floatList
+          describe "Unlifted Floats" $ do
+            it "compare as expected" $ do
+               let zero#  = VUSI.unI# 0 
+                   one#   = VUSI.unI# 1
+                   two#   = VUSI.unI# 2
+               True `shouldBe` (case zero# ># one# of
+                                  1#  -> False
+                                  0# -> True)
           describe "Vectors" $ do
             it "should have the same length as the lists used to initialised them" $
               do VU.length floatVector `shouldBe` length floatList
