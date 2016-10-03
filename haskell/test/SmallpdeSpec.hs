@@ -77,7 +77,7 @@ spec = do
            smallVector <- SmallpdeVector.solve 16 1 >>= VU.freeze
            forM_ [0..3] $ \k -> do
              forM_ [0..3] $ \i -> do 
-                forM_ [0..15] $ \j ->
+                forM_ [0..15] $ \j -> do
                     -- putStr $ show (smallVector VG.! (4*16*i+4*j+k)) ++ " "
                     (smallVector VG.! (4*16*i+4*j+k)) `shouldAlmostBe` (smallBaseLine !! ((4*k+i)*16+j))
                 -- putStrLn ""

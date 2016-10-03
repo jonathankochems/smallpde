@@ -220,7 +220,7 @@ solve !n !iterations =
         oneIter !n !d !a !b !i !j = do
                   let rawb = VUSI.convertToRawVector b
                       rawa = VUSI.convertToRawVector a
-                  VUSI.rawVectorisedStencil n d# d'# rawa rawb i j 
+                  VUSI.rawVectorisedStencil1 n d# d'# rawa rawb i j 
                   --VUSI.rawVectorisedStencil n d# d'# rawa rawb i (j+4) 
                   -- !north  <-  VUSI.rawVectorisedRead rawb  $ i+4*n+j
                   -- !east   <-  VUSI.rawVectorisedRead rawb  $ i+j-4
