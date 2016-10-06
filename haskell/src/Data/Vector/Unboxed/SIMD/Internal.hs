@@ -199,7 +199,7 @@ rawVectorisedRead !a !i = primitive go
 
 {-# INLINE rawVectorisedStencil1 #-}
 rawVectorisedStencil1 :: Int -> FloatX4# -> FloatX4# -> ByteArray.MutableByteArray# RealWorld -> ByteArray.MutableByteArray# RealWorld -> Int -> Int -> IO ()
-rawVectorisedStencil1 !n !d !d' !a !b !i !j = primitive $ go' index0
+rawVectorisedStencil1 !n !d !d' !a !b !i !j = primitive go''
   where {-# INLINE start #-}
         start = 0#
         {-# INLINE end #-}
@@ -210,17 +210,19 @@ rawVectorisedStencil1 !n !d !d' !a !b !i !j = primitive $ go' index0
         inc   = 16#
         {-# INLINE index0 #-}
         index0  = unI# (i+j)
+        go'' :: State# RealWorld -> (# State# RealWorld, () #) 
+        go'' s = go' index0 s 
+        go' :: Int# -> State# RealWorld -> (# State# RealWorld, () #) 
         go' index s = $(AFI.generate $ do let _a      = varE $ mkName "a"
                                               _b      = varE $ mkName "b"
                                               _index0 = varE $ mkName "index0"
-                                              _start  = VarE $ mkName "start"
-                                              _end    = VarE $ mkName "end"
-                                              _inc    = VarE $ mkName "inc"
+                                              _start  = varE $ mkName "start"
+                                              _end    = varE $ mkName "end"
+                                              _inc    = varE $ mkName "inc"
                                               _row    = varE $ mkName "row"
                                               _d      = varE $ mkName "d"
                                               _d'     = varE $ mkName "d'"
-                                          forAQ _start _end _inc $ \_index' -> do 
-                                              let _index = return _index'
+                                          forAQ _start _end _inc $ \_index -> do 
                                               _north <- AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) -# $(_row)|]
                                               _east  <- AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) -# 4#|]
                                               _here  <- AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index)|]
@@ -290,8 +292,8 @@ rawVectorisedStencil1 !n !d !d' !a !b !i !j = primitive $ go' index0
                                                               `plusFloatX4#`  $(west''')
                                                               `plusFloatX4#`  $(south''')
                                                                            )
-                                                    ) |] 
-                                              AFI.returnAQ
+                                                    ) |]
+                                              return $ tupE []
                                           return ())
 
 {-# INLINE rawVectorisedStencil #-}
