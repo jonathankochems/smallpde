@@ -11,9 +11,12 @@ import qualified Data.Vector.Unboxed as VU
 
 -- import Data.Array.Repa (ix2, (!))
 
+import Numeric (showEFloat)
 import qualified DataVectorUnboxedSimdSpec as DVUSS
 
 import Control.Monad
+
+showFloat num = (showEFloat (Just 5) num "")          
 
 main :: IO ()
 main = do --hspec spec
@@ -46,15 +49,19 @@ spec = do
                                 0, 1.58848e-06, 1.03338e-05, 4.98616e-05, 0.000182267, 0.000506116, 0.00106262, 0.00167084, 0.00194651, 0.00167084, 0.00106262, 0.000506116, 0.000182266, 4.98475e-05, 1.01535e-05, 0, 
                                 0, 2.37843e-07, 1.84155e-06, 1.01546e-05, 4.10763e-05, 0.000123041, 0.000272598, 0.00044292, 0.000521829, 0.00044292, 0.000272598, 0.000123041, 4.10763e-05, 1.01535e-05, 1.82049e-06, 0, 
                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 
---           small <- Smallpde.solve 14 16
---           forM_ [1..14] $ \i -> 
---              forM_ [1..14] $ \j -> 
---                  small ! ix2 (i-1) (j-1) `shouldAlmostBe` (smallBaseLine !! (i*16+j))
            smallVector <- SmallpdeVector.solve 16 16 >>= VU.freeze
-           forM_ [0..15] $ \i -> 
-              forM_ [0..15] $ \j -> 
+           forM_ [0..15] $ \i -> do  
+              forM_ [0..15] $ \j -> do
+                  --putStr $ showFloat (smallVector VG.! indexTransform 16 i j) ++ " "
                   (smallVector VG.! indexTransform 16 i j) `shouldAlmostBe` (smallBaseLine !! (i*16+j))
-
+              --putStrLn ""
+           {- putStrLn ""
+           putStrLn ""
+           forM_ [0..15] $ \i -> do  
+              forM_ [0..15] $ \j -> do
+                  putStr $ show (smallBaseLine !! (i*16+j)) ++ " "
+                  --(smallVector VG.! indexTransform 16 i j) `shouldAlmostBe` (smallBaseLine !! (i*16+j))
+              putStrLn "" -}
     describe "one iteration" $
       it "should work fine" $
         do let smallBaseLine :: [Float]

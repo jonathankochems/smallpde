@@ -155,6 +155,7 @@ library
                         Data.Vector.Unboxed.SIMD,
                         Data.Vector.Unboxed.SIMD.Internal
                         Data.Vector.AcceleratedFor.Internal
+                        Data.Vector.AcceleratedFor.Equivalence
   
   -- Modules included in this library but not exported.
   Other-Modules:        VectorInst

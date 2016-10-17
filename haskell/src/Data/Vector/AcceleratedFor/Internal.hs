@@ -63,9 +63,7 @@ forAQ start end inc body = Accelerate $ \i ->
                                 return (i',k,return unitE)
   where goCall index = Accelerate $ \i -> return (i, kont, tupE []) 
           where kont s k = do s''' <- newName "state"
-                              [| case go ($(index) +# $(inc)) $(s) of 
-                                  (# $(varP s'''), () #) -> $(k $ varE s''')
-                               |]
+                              [| go ($(index) +# $(inc)) $(s) |]
                     
 returnAQ = Accelerate $ \i -> do return (i,\s -> \k -> k s, unitE)
 
