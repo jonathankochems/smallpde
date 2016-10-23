@@ -171,6 +171,7 @@ library
                        vector,
                        primitive,
                        primitive-simd,
+                       mtl,
                        ghc-prim
   
   -- Directories containing source files.
@@ -187,6 +188,9 @@ library
         if flag(perf) 
           ghc-options:  -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall -g -optc-fno-omit-frame-pointer -optc-g -optc-fverbose-asm
         else
+          if flag(dumpsplices) 
+            ghc-options: -fllvm -optlo-O3 -optc-ffast-math -Wall -ddump-splices
+          else
             ghc-options: -optc-march=native -Odph -fno-liberate-case -funfolding-use-threshold1000 -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optc-ffast-math -Wall
 
 Test-Suite test-smallpde
