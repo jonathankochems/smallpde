@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples, ScopedTypeVariables,TypeFamilies,MultiParamTypeClasses #-}
+{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples, ScopedTypeVariables,TypeFamilies,MultiParamTypeClasses,TemplateHaskell #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -funbox-strict-fields -optc -ffast-math #-}
 module Data.Vector.Unboxed.SIMD.Internal where
@@ -23,6 +23,10 @@ import Control.Monad(liftM,forM_)
 import Control.Monad.Primitive(primitive,primToIO,internal)
 
 import qualified Data.Primitive.ByteArray as ByteArray
+
+import qualified Data.Vector.AcceleratedFor.Internal as AFI
+import Data.Vector.AcceleratedFor.Internal (for1D,for2D,for2DSkip)
+import Language.Haskell.TH
 
 import Unsafe.Coerce
 
@@ -193,6 +197,125 @@ rawVectorisedRead !a !i = primitive go
         go !s = case readFloatArrayAsFloatX4# a (unI# i) s of
                   { !(# s1#, x# #) -> (# s1#, coerceToFloatX4 (FloatX4# x#) #) }
 
+{-# INLINE rawVectorisedStencil1 #-}
+rawVectorisedStencil1 :: Int -> FloatX4# -> FloatX4# -> ByteArray.MutableByteArray# RealWorld -> ByteArray.MutableByteArray# RealWorld -> Int -> Int -> IO ()
+rawVectorisedStencil1 !n !d !d' !a !b !i !j = primitive go''
+  where {-# INLINE start #-}
+        start = 0#
+        {-# INLINE end #-}
+        end   = unI# (4*n-8)
+        {-# INLINE row #-}
+        row   = unI# (4*n)
+        {-# INLINE inc #-}
+        inc   = 8#
+        {-# INLINE index0 #-}
+        index0  = unI# (i+j)
+        go'' :: State# RealWorld -> (# State# RealWorld, () #) 
+        go'' s = go' index0 s 
+        go' :: Int# -> State# RealWorld -> (# State# RealWorld, () #) 
+        go' index s = $(AFI.generate $ do let _a      = varE $ mkName "a"
+                                              _b      = varE $ mkName "b"
+                                              _index0 = varE $ mkName "index0"
+                                              _start  = varE $ mkName "start"
+                                              _end    = varE $ mkName "end"
+                                              _inc    = varE $ mkName "inc"
+                                              _row    = varE $ mkName "row"
+                                              _d      = varE $ mkName "d"
+                                              _d'     = varE $ mkName "d'"
+                                          for1D _start _end _inc $ \_index -> do 
+                                              north <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) -# $(_row)|]
+                                              east  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) -# 4#|]
+                                              here  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index)|]
+                                              west  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) +# 4#|]
+                                              south <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) +# $(_row)|]
+                                              AFI.writeFloatArrayAsFloatQ _a [|$(_index0) +# $(_index)|] 
+                                                 [| ($(_d') `timesFloatX4#` $(here))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d) `timesFloatX4#` (  $(north)
+                                                              `plusFloatX4#`  $(east)
+                                                              `plusFloatX4#`  $(west)
+                                                              `plusFloatX4#`  $(south)
+                                                                           )
+                                                    ) |] 
+                                              north' <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) -# $(_row) +# 4# |]
+                                              west'  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) +# 8# |]
+                                              south' <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_index0) +# $(_index) +# $(_row) +# 4# |]
+                                              let east'  = here 
+                                                  here'  = west 
+                                              AFI.writeFloatArrayAsFloatQ _a [|$(_index0) +# $(_index) +# 4#|] 
+                                                 [| ($(_d') `timesFloatX4#` $(here'))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d) `timesFloatX4#` (  $(north')
+                                                              `plusFloatX4#`  $(east')
+                                                              `plusFloatX4#`  $(west')
+                                                              `plusFloatX4#`  $(south')
+                                                                           )
+                                                    ) |] 
+                                              return $ tupE []
+                                          return ())
+
+{-# INLINE rawVectorisedStencil2 #-}
+rawVectorisedStencil2 :: Int -> FloatX4# -> FloatX4# -> ByteArray.MutableByteArray# RealWorld -> ByteArray.MutableByteArray# RealWorld -> Int -> Int -> IO ()
+rawVectorisedStencil2 !n !d !d' !a !b !i !j = primitive go'
+  where {-# INLINE iStart #-}
+        iStart = 4#
+        {-# INLINE iEnd #-}
+        iEnd   = unI# (4*n-4)
+        {-# INLINE indexStart #-}
+        indexStart = unI# (4*n+4) 
+        {-# INLINE indexEnd #-}
+        indexEnd   = unI# ((n `div` 4 - 1)*4*n-4)
+        {-# INLINE row #-}
+        row   = unI# (4*n)
+        go' ::  State# RealWorld -> (# State# RealWorld, () #) 
+        go' s = $(AFI.generate $ do let _a      = varE $ mkName "a"
+                                        _b      = varE $ mkName "b"
+                                        _indexStart = varE $ mkName "indexStart"
+                                        _indexEnd   = varE $ mkName "indexEnd"
+                                        _iStart = varE $ mkName "iStart"
+                                        _iEnd   = varE $ mkName "iEnd"
+                                        _jInc   = varE $ mkName "jnc"
+                                        _row    = varE $ mkName "row"
+                                        _d      = varE $ mkName "d"
+                                        _d'     = varE $ mkName "d'"
+                                        epi _b _i _row _d _d' here west _offset _midoffset
+                                            = do north' <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) -# $(_row) +# $(_offset) |]
+                                                 west'  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) +# $(_midoffset) |]
+                                                 south' <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) +# $(_row) +# $(_offset) |]
+                                                 let east'  = here 
+                                                     here'  = west 
+                                                 AFI.writeFloatArrayAsFloatQ _a [| $(_i) +# $(_offset) |] 
+                                                    [| ($(_d') `timesFloatX4#` $(here'))  
+                                                       `plusFloatX4#` 
+                                                       ($(_d) `timesFloatX4#` (  $(north')
+                                                                 `plusFloatX4#`  $(east')
+                                                                 `plusFloatX4#`  $(west')
+                                                                 `plusFloatX4#`  $(south')
+                                                                              )
+                                                       ) |]
+                                                 return (north',west',south')
+                                    for2DSkip (_indexStart, _indexEnd) [| 8# |] [| 8# |] 
+                                              (_iStart, _iEnd) [| 8# |] $ \_i -> do 
+                                        north <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) -# $(_row)|]
+                                        east  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) -# 4#     |]
+                                        here  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i)           |]
+                                        west  <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) +# 4#     |]
+                                        south <- return <$> AFI.readFloatArrayAsFloatQ _b [|$(_i) +# $(_row)|]
+                                        AFI.writeFloatArrayAsFloatQ _a [| $(_i) |] 
+                                           [| ($(_d') `timesFloatX4#` $(here))  
+                                              `plusFloatX4#` 
+                                              ($(_d) `timesFloatX4#` (  $(north)
+                                                        `plusFloatX4#`  $(east)
+                                                        `plusFloatX4#`  $(west)
+                                                        `plusFloatX4#`  $(south)
+                                                                     )
+                                              ) |] 
+                                        (_, west', _ )  <- epi _b _i _row _d _d' here west    [|  4# |] [|  8# |]
+                                        return [|()|] 
+                                    return ())
+                  
+
+    
 {-# INLINE rawVectorisedStencil #-}
 rawVectorisedStencil :: Int -> FloatX4# -> FloatX4# -> ByteArray.MutableByteArray# RealWorld -> ByteArray.MutableByteArray# RealWorld -> Int -> Int -> IO ()
 rawVectorisedStencil !n !d# !d'# !a !b !i !j = primitive $ go index0# j0#

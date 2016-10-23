@@ -198,7 +198,7 @@ solve !n !iterations =
                                             go (i+4*n) 4
                           | otherwise = do -- traceShow (3,i,j,indexTransform n i j) $ return ()
                                            !() <- oneIter n d a b i j
-                                           go (i+4*n) 4
+                                           go' ((n*n) `div` (4*n)-1) 1
                  go' !i !j | 4*i >= n-2 = -- traceShow (4,i,j,indexTransform n i j) $
                                            return ()
                            | j >= n-1  = -- traceShow (5,i,j,indexTransform n i j) $
@@ -220,7 +220,7 @@ solve !n !iterations =
         oneIter !n !d !a !b !i !j = do
                   let rawb = VUSI.convertToRawVector b
                       rawa = VUSI.convertToRawVector a
-                  VUSI.rawVectorisedStencil n d# d'# rawa rawb i j 
+                  VUSI.rawVectorisedStencil2 n d# d'# rawa rawb i j 
                   --VUSI.rawVectorisedStencil n d# d'# rawa rawb i (j+4) 
                   -- !north  <-  VUSI.rawVectorisedRead rawb  $ i+4*n+j
                   -- !east   <-  VUSI.rawVectorisedRead rawb  $ i+j-4
