@@ -91,7 +91,7 @@ executable vectorBench
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4 && <5,
-                       template-haskell,
+                       template-haskell >= 2.11,
                        deepseq,
                        vector,
                        primitive,
@@ -125,7 +125,7 @@ executable fdm-haskell
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4 && <5,
-                       template-haskell,
+                       template-haskell >= 2.11,
                        deepseq,
                        vector,
                        primitive,
@@ -166,7 +166,7 @@ library
   
   -- Other library packages from which modules are imported.
   build-depends:       base >=4 && <5,
-                       template-haskell,
+                       template-haskell >= 2.11,
                        deepseq,
                        vector,
                        primitive,
@@ -201,7 +201,7 @@ Test-Suite test-smallpde
   build-depends:    base,
                     hspec >= 1.3,
                     QuickCheck >= 2.6,
-                    template-haskell,
+                    template-haskell >= 2.11,
                     deepseq,
                     ghc-prim,
                     vector,
