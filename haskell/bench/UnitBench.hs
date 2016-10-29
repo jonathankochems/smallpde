@@ -19,22 +19,22 @@ import qualified Data.Vector.Unboxed.SIMD.Internal as VUSI
 
 import Language.Haskell.TH
 import qualified Data.Vector.AcceleratedFor.Internal as AFI
-import Data.Vector.AcceleratedFor.Internal (for1D,for2D,for2DSkip,for1D')
+import Data.Vector.AcceleratedFor.Internal (for1D,for2D,for2DSkip,for1D',for1D'')
 import GHC.Prim
 import Control.Monad.Primitive(primitive,primToIO,internal)
 import GHC.Base (Int(..))
 
 main = defaultMain [
              bench "normalRead" $ nfIO (normalReadBench n)
-           , bench "unsafeRead1" $ nfIO (unsafeReadBench n)
-           , bench "unsafeRead8" $ nfIO (unsafeReadBench8 n)
+           , bench "unsafeRead1" $ nfIO (unsafeReadBench steps n)
+           , bench "unsafeRead8" $ nfIO (unsafeReadBench8 steps n)
            , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
            , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
            , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
-           , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench n)
+           , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench steps n)
 --           , bench "rawVectorisedRead" $ nfIO (rawVectorisedReadBench n)
         ]
-  where n     =  256
+  where n     =  256*256
         steps =  5*1024
 
 assert True  = return ()
@@ -52,9 +52,10 @@ normalReadBench n = do !floatMutableVector <- VU.thaw floatVector
               !floatVector = VU.fromList floatList
 
 
-unsafeReadBench :: Int -> IO ()
-unsafeReadBench n = do !floatMutableVector <- VU.thaw floatVector
-                       forM_ [0..1000] $ \i -> do
+unsafeReadBench :: Int -> Int -> IO ()
+unsafeReadBench steps n = 
+                    do !floatMutableVector <- VU.thaw floatVector
+                       forM_ [0..steps] $ \i -> do
                            forM_ [0..n-1] $ \i -> do
                              f <- floatMutableVector `VGM.unsafeRead` i 
                              VGM.unsafeWrite floatMutableVector i (2*f)
@@ -63,9 +64,10 @@ unsafeReadBench n = do !floatMutableVector <- VU.thaw floatVector
               floatVector :: VU.Vector Float
               !floatVector = VU.fromList floatList
 
-unsafeReadBench8 :: Int -> IO ()
-unsafeReadBench8 n = do !floatMutableVector <- VU.thaw floatVector
-                        forM_ [0..1000] $ \i -> do
+unsafeReadBench8 :: Int -> Int -> IO ()
+unsafeReadBench8 steps n = 
+                     do !floatMutableVector <- VU.thaw floatVector
+                        forM_ [0..steps] $ \i -> do
                             forM_ [0..(n `div` 8)-1] $ \i -> do
                               f <- floatMutableVector `VGM.unsafeRead` (8*i) 
                               VGM.unsafeWrite floatMutableVector (8*i) (2*f)
@@ -122,8 +124,8 @@ veryunsafeVectorisedReadBench n = do !floatMutableVector <- VU.thaw floatVector
               floatVector :: VU.Vector Float
               !floatVector = VU.fromList floatList
 
-generatedVectorisedReadBench :: Int -> IO ()
-generatedVectorisedReadBench n = do 
+generatedVectorisedReadBench :: Int -> Int -> IO ()
+generatedVectorisedReadBench steps n = do 
                               !floatMutableVector <- VU.thaw floatVector
                               let rawb = VUSI.convertToRawVector floatMutableVector
                               primitive $ go rawb
@@ -132,12 +134,13 @@ generatedVectorisedReadBench n = do
               !floatList = [0..fromInteger (toInteger $ n-1)]
               floatVector :: VU.Vector Float
               !floatVector = VU.fromList floatList
-              !(I# n#) = n
+              !(I# n#)     = n
+              !(I# steps#) = steps
               go ::MutableByteArray# RealWorld -> State# RealWorld -> (# State# RealWorld, () #)
               go rawb s = $(AFI.generate $ do 
                        let _rawb   = varE $ mkName "rawb"
-                       for1D  [| 0# |] [| 1000# |] [| 1# |] $ \_ -> do
-                         for1D' [| 0# |] [| n# |] [| 32# |] $ \_index -> do 
+                       for1D''  [| 0# |] [| steps# |] [| 1#  |] 
+                                [| 0# |] [| n# |]    [| 32# |] $ \_ -> \_index -> do 
                              f  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) |]
                              AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) |] [| $(f) `plusFloatX4#` $(f)|] 
                              f' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 4#  |]
