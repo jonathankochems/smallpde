@@ -1,3 +1,14 @@
+-- |
+-- Module      :  Data.Vector.AcceleratedFor.Internal
+-- Copyright   :  Jonathan Kochems 2015-2016
+-- License     :  BSD3
+--
+-- Maintainer  :  jonathan.kochems@gmail.com
+-- Stability   :  experimental
+-- Portability :  unknown
+--
+-- Description
+--
 {-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples, ScopedTypeVariables, TemplateHaskell, FlexibleContexts #-}
 module Data.Vector.AcceleratedFor.Internal where
 
@@ -47,6 +58,35 @@ triple x y z = do x' <- x
                   y' <- y
                   z' <- z
                   return (x',y',z')
+
+
+for1D' :: Q Exp -> Q Exp -> Q Exp -> (Q Exp -> Accelerate ExpQ) -> Accelerate ExpQ
+for1D' start end inc body = Accelerate $ \j -> 
+                             do let i       = [ mkName $ "i" ++ show (j + k) | k <- [1..8]  ]
+                                    is      = mkName $ "i" ++ show (j + 9)
+                                    is'     = mkName $ "i" ++ show (j + 10)
+                                (j',kont',val) <- unwrap (do forM_ i $ \_i -> body $ varE _i
+                                                             goCall (varE is) (varE is')) $ j+10
+                                let k s = cont $ \kont -> do
+                                            s'  <- newName "state"
+                                            s'' <- newName "state"
+                                            [| let !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ])
+                                                   !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) 
+                                                   !incs   = broadcastInt32X4# ( 8# *# $(inc) )
+                                                   go :: Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #)
+                                                   go $(varP is) $(varP is') $(varP s') = 
+                                                    let $(unboxedTupP . map varP $ take 4 i)            = unpackInt32X4# $(varE is) 
+                                                        $(unboxedTupP . map varP $ take 4 $ drop 4 i )  = unpackInt32X4# $(varE is'  ) 
+                                                    in case $(varE $ last i) <# $(end) of
+                                                        0# -> (# $(varE s'), () #)
+                                                        1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                               in case go starts starts' $(s) of
+                                                     (# $(varP s''), () #) -> $(kont $ varE s'')
+                                             |]
+                                return (j',k,return unitE)
+  where goCall index index' = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| go ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
+                                              $(s) |]
 
 for1D :: Q Exp -> Q Exp -> Q Exp -> (Q Exp -> Accelerate ExpQ) -> Accelerate ExpQ
 for1D start end inc body = Accelerate $ \i -> 
