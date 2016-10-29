@@ -25,13 +25,12 @@ import Control.Monad.Primitive(primitive,primToIO,internal)
 import GHC.Base (Int(..))
 
 main = defaultMain [
---             bench "normalRead" $ nfIO (normalReadBench n)
---           , bench "unsafeRead" $ nfIO (unsafeReadBench n)
---           , 
-               bench "unsafeRead8" $ nfIO (unsafeReadBench n)
---           , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
---           , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
---           , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
+             bench "normalRead" $ nfIO (normalReadBench n)
+           , bench "unsafeRead1" $ nfIO (unsafeReadBench n)
+           , bench "unsafeRead8" $ nfIO (unsafeReadBench8 n)
+           , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
+           , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
+           , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
            , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench n)
 --           , bench "rawVectorisedRead" $ nfIO (rawVectorisedReadBench n)
         ]
@@ -127,8 +126,7 @@ generatedVectorisedReadBench :: Int -> IO ()
 generatedVectorisedReadBench n = do 
                               !floatMutableVector <- VU.thaw floatVector
                               let rawb = VUSI.convertToRawVector floatMutableVector
-                              forM_ [0..1000] $ \i -> do
-                                primitive $ go rawb
+                              primitive $ go rawb
                                 
     where     floatList :: [Float]
               !floatList = [0..fromInteger (toInteger $ n-1)]
@@ -138,23 +136,24 @@ generatedVectorisedReadBench n = do
               go ::MutableByteArray# RealWorld -> State# RealWorld -> (# State# RealWorld, () #)
               go rawb s = $(AFI.generate $ do 
                        let _rawb   = varE $ mkName "rawb"
-                       for1D' [| 0# |] [| n# |] [| 32# |] $ \_index -> do 
-                           f  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) |] [| $(f) `plusFloatX4#` $(f)|] 
-                           f' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 4#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 4# |] [| $(f') `plusFloatX4#` $(f') |] 
-                           f'' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 8#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 8# |] [| $(f'') `plusFloatX4#` $(f'') |] 
-                           f''' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 12#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 12# |] [| $(f''') `plusFloatX4#` $(f''') |] 
-                           f1  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 16# |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 16# |] [| $(f1) `plusFloatX4#` $(f1)|] 
-                           f1' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 20#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 20# |] [| $(f1') `plusFloatX4#` $(f1') |] 
-                           f1'' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 24#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 24# |] [| $(f1'') `plusFloatX4#` $(f1'') |] 
-                           f1''' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 28#  |]
-                           AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 28# |] [| $(f1''') `plusFloatX4#` $(f1''') |] 
-                           return [| () |])
+                       for1D  [| 0# |] [| 1000# |] [| 1# |] $ \_ -> do
+                         for1D' [| 0# |] [| n# |] [| 32# |] $ \_index -> do 
+                             f  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) |] [| $(f) `plusFloatX4#` $(f)|] 
+                             f' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 4#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 4# |] [| $(f') `plusFloatX4#` $(f') |] 
+                             f'' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 8#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 8# |] [| $(f'') `plusFloatX4#` $(f'') |] 
+                             f''' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 12#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 12# |] [| $(f''') `plusFloatX4#` $(f''') |] 
+                             f1  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 16# |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 16# |] [| $(f1) `plusFloatX4#` $(f1)|] 
+                             f1' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 20#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 20# |] [| $(f1') `plusFloatX4#` $(f1') |] 
+                             f1'' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 24#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 24# |] [| $(f1'') `plusFloatX4#` $(f1'') |] 
+                             f1''' <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| $(_index) +# 28#  |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| $(_index) +# 28# |] [| $(f1''') `plusFloatX4#` $(f1''') |] 
+                             return [| () |])
 
                    

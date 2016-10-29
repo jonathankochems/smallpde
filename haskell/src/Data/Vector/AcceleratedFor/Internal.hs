@@ -18,6 +18,8 @@ import GHC.Prim
 
 import Control.Monad.Cont
 import Control.Monad.Reader
+import Control.Monad.Primitive
+
 
 newtype Accelerate a = Accelerate { unwrap :: Integer ->  Q (Integer, ExpQ -> Cont ExpQ ExpQ, a) }
 
@@ -65,47 +67,53 @@ for1D' start end inc body = Accelerate $ \j ->
                              do let i       = [ mkName $ "i" ++ show (j + k) | k <- [1..8]  ]
                                     is      = mkName $ "i" ++ show (j + 9)
                                     is'     = mkName $ "i" ++ show (j + 10)
+                                go  <- newName "go"
                                 (j',kont',val) <- unwrap (do forM_ i $ \_i -> body $ varE _i
-                                                             goCall (varE is) (varE is')) $ j+10
+                                                             goCall (varE go) (varE is) (varE is')) $ j+10
                                 let k s = cont $ \kont -> do
                                             s'  <- newName "state"
                                             s'' <- newName "state"
-                                            [| let !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ])
-                                                   !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) 
-                                                   !incs   = broadcastInt32X4# ( 8# *# $(inc) )
-                                                   go :: Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #)
-                                                   go $(varP is) $(varP is') $(varP s') = 
-                                                    let $(unboxedTupP . map varP $ take 4 i)            = unpackInt32X4# $(varE is) 
-                                                        $(unboxedTupP . map varP $ take 4 $ drop 4 i )  = unpackInt32X4# $(varE is'  ) 
-                                                    in case $(varE $ last i) <# $(end) of
-                                                        0# -> (# $(varE s'), () #)
-                                                        1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
-                                               in case go starts starts' $(s) of
+                                            letE [
+                                                   head <$> [d| !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ]) |]
+                                                 , head <$> [d| !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) |]
+                                                 , head <$> [d| !incs      = broadcastInt32X4# ( 8# *# $(inc) )  |]
+                                                 , sigD go [t| Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD go [clause [varP is, varP is', varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                              $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
+                                                           in case $(varE $ last i) <# $(end) of
+                                                                   0# -> (# $(varE s'), () #)
+                                                                   1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                       |]) []]
+                                                 ] [| case $(varE go) starts starts' $(s) of
                                                      (# $(varP s''), () #) -> $(kont $ varE s'')
-                                             |]
+                                                   |]
                                 return (j',k,return unitE)
-  where goCall index index' = Accelerate $ \i -> return (i, kont, tupE []) 
-          where kont s = cont . const $ [| go ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
+  where goCall go index index' = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| $(go) ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
                                               $(s) |]
 
 for1D :: Q Exp -> Q Exp -> Q Exp -> (Q Exp -> Accelerate ExpQ) -> Accelerate ExpQ
 for1D start end inc body = Accelerate $ \i -> 
                              do let loopVar = mkName $ "i" ++ show (i + 1)
-                                (i',kont',val) <- unwrap (body (varE loopVar) >> goCall (varE loopVar)) $ i+1
+                                go  <- newName "go"
+                                (i',kont',val) <- unwrap (body (varE loopVar) >> goCall (varE go) (varE loopVar)) $ i+1
                                 let k s = cont $ \kont -> do
                                             s'  <- newName "state"
                                             s'' <- newName "state"
-                                            [| let go :: Int# -> State# RealWorld -> (# State# RealWorld, () #)
-                                                   go $(varP loopVar) $(varP s') = 
-                                                      case $(varE loopVar) <# $(end) of
-                                                       0# -> (# $(varE s'), () #)
-                                                       1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
-                                               in case go $(start) $(s) of
+                                            letE [
+                                                   sigD go [t| Int# -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD go [clause [varP loopVar, varP s'] (normalB $
+                                                       [| case $(varE loopVar) <# $(end) of
+                                                            0# -> (# $(varE s'), () #)
+                                                            1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                       |]) []]
+                                                 ] [| case $(varE go) $(start) $(s) of
                                                      (# $(varP s''), () #) -> $(kont $ varE s'')
-                                             |]
+                                                   |]
                                 return (i',k,return unitE)
-  where goCall index = Accelerate $ \i -> return (i, kont, tupE []) 
-          where kont s = cont . const $ [| go ($(index) +# $(inc)) $(s) |]
+  where goCall go index = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ do [| $(go) ($(index) +# $(inc)) $(s) |]
 
           
 for2DSkip :: (ExpQ, ExpQ) -> ExpQ -> ExpQ -> (ExpQ, ExpQ) -> ExpQ -> (ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ
@@ -130,7 +138,8 @@ for2DSkip (indexStart, indexEnd) indexInc indexSkip (colsStart,colsEnd) colsInc 
                                              |]
                                 return (i',k,[|()|])
   where goCall index cols = Accelerate $ \i -> return (i, kont, [|()|]) 
-          where kont s = cont . const $ [| go ($(index) +# $(indexInc)) ($(cols) +# $(colsInc)) $(s) |]
+          where kont s = cont . const $ do let go = varE $ mkName "go"
+                                           [| $(go) ($(index) +# $(indexInc)) ($(cols) +# $(colsInc)) $(s) |]
 
 for2D :: (ExpQ, ExpQ) -> ExpQ -> (ExpQ, ExpQ) -> ExpQ -> (ExpQ -> ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ
 for2D (xStart, xEnd) xInc (yStart,yEnd) yInc body = 
@@ -152,7 +161,8 @@ for2D (xStart, xEnd) xInc (yStart,yEnd) yInc body =
                                              |]
                                 return (i',k,[|()|])
   where goCall xIndex yIndex = Accelerate $ \i -> return (i, kont, [|()|]) 
-          where kont s = cont . const $ [| go ($(xIndex) +# $(xInc)) $(yIndex) $(s) |]
+          where kont s = cont . const $ do let go = varE $ mkName "go" 
+                                           [| $(go) ($(xIndex) +# $(xInc)) $(yIndex) $(s) |]
 
 returnAQ = Accelerate $ \i -> do return (i,\s -> cont $ \k -> k s, unitE)
 

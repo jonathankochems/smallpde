@@ -81,7 +81,6 @@ Flag Perf
   Default: False
   Manual: True
 
-
 executable vectorBench
   -- Modules exported by the library.
   Main-is:      UnitBench.hs
