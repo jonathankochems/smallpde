@@ -171,7 +171,7 @@ generatedStencilBench steps size = do
               !floatList = [0..fromInteger (toInteger $ size-1)]
               floatVector :: VU.Vector Float
               !floatVector = VU.fromList floatList
-              !(I# n#)     = (toInt . sqrt $ fromIntegral size) - 1
+              !(I# n#)     = (toInt . sqrt $ fromIntegral size)
               !(I# n'#)    = (toInt . sqrt $ fromIntegral size) `div` 4 - 1
               !(I# steps#) = steps
               d            = broadcastFloatX4# 0.5#
@@ -180,8 +180,25 @@ generatedStencilBench steps size = do
                        let _rawb   = varE $ mkName "rawb"
                            _d      = varE $ mkName "d"
                        for2D''  [| 0# |] [| steps# |] [| 1# |] 
-                                [| 1# |] [| n'# |]    [| 1# |]  
-                                [| 4# |] [| n# |]     [| 4# |] $ \_ -> \_i -> \_j -> do 
+                                [| 0# |] [| n'# |]    [| 1# |]  
+                                [| 4# |] [| n# |]     [| 4# |] 
+                            ( \_ -> \_i -> \_j -> do 
+                             north  <-        _rawb `AFI.readFloatArrayAsFloatNorth` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
+                             east   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) -# 4#   |]
+                             here   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j)         |]
+                             west   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 4#   |]
+                             south  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| 4# *# n# *# $(_i) +# $(_j) |]  
+                                                 [| (( (broadcastFloatX4# 1.0#) `minusFloatX4#` $(_d)) `timesFloatX4#` $(here))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d)  `timesFloatX4#` (  $(north)
+                                                              `plusFloatX4#`  $(east)
+                                                              `plusFloatX4#`  $(west)
+                                                              `plusFloatX4#`  $(south)
+                                                                           )
+                                                    ) |] 
+                             return [| () |])
+                            ( \_ -> \_i -> \_j -> do 
                              north  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
                              east   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) -# 4#   |]
                              here   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j)         |]
@@ -197,5 +214,21 @@ generatedStencilBench steps size = do
                                                                            )
                                                     ) |] 
                              return [| () |])
-
+                            ( \_ -> \_i -> \_j -> do 
+                             north  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
+                             east   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) -# 4#   |]
+                             here   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j)         |]
+                             west   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 4#   |]
+                             south  <-        _rawb `AFI.readFloatArrayAsFloatNorth` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) |]
+                             AFI.writeFloatArrayAsFloatQ _rawb [| 4# *# n# *# $(_i) +# $(_j) |]  
+                                                 [| (( (broadcastFloatX4# 1.0#) `minusFloatX4#` $(_d)) `timesFloatX4#` $(here))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d)  `timesFloatX4#` (  $(north)
+                                                              `plusFloatX4#`  $(east)
+                                                              `plusFloatX4#`  $(west)
+                                                              `plusFloatX4#`  $(south)
+                                                                           )
+                                                    ) |] 
+                             return [| () |])
+                            )
                    

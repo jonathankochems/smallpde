@@ -61,17 +61,34 @@ triple x y z = do x' <- x
                   z' <- z
                   return (x',y',z')
 
-for2D'' :: ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ
-for2D'' start' end' inc' start'' end'' inc'' start end inc body 
+for2D'' :: ExpQ -> ExpQ -> ExpQ -> 
+           ExpQ -> ExpQ -> ExpQ -> 
+           ExpQ -> ExpQ -> ExpQ -> 
+             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+                Accelerate ExpQ
+for2D'' start' end' inc' 
+        start'' end'' inc'' 
+        start end inc 
+          prologueBody 
+          body 
+          epilogueBody
             = Accelerate $ \j -> 
                              do let i       = [ mkName $ "i" ++ show (j + k) | k <- [1..8]  ]
                                     is      = mkName $ "i" ++ show (j + 9)
                                     is'     = mkName $ "i" ++ show (j + 10)
                                     i'      = mkName $ "i'" ++ show (j + 11)
                                     i''     = mkName $ "i''" ++ show (j + 12)
-                                go  <- newName "go"
-                                (j',kont',val) <- unwrap (do forM_ i $ \_i -> body (varE i') (varE i'') $ varE _i
-                                                             goCall (varE go) (varE i') (varE i'') (varE is) (varE is')) $ j+12
+                                go        <- newName "go"
+                                prologue  <- newName "prologue"
+                                epilogue  <- newName "epilogue"
+                                (j'', pro,_)     <- unwrap (do forM_ i $ \_i -> prologueBody (varE i') (varE i'') $ varE _i
+                                                               goCall (varE prologue) (varE i') (varE i'') (varE is) (varE is')) $ j+12
+                                (j',  kont',val) <- unwrap (do forM_ i $ \_i -> body (varE i') (varE i'') $ varE _i
+                                                               goCall (varE go) (varE i') (varE i'') (varE is) (varE is')) j''
+                                (j''', epi,_)    <- unwrap (do forM_ i $ \_i -> epilogueBody (varE i') (varE i'') $ varE _i
+                                                               goCall (varE epilogue) (varE i') (varE i'') (varE is) (varE is')) $ j'
                                 let k s = cont $ \kont -> do
                                             s'  <- newName "state"
                                             s'' <- newName "state"
@@ -79,6 +96,14 @@ for2D'' start' end' inc' start'' end'' inc'' start end inc body
                                                    head <$> [d| !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ]) |]
                                                  , head <$> [d| !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) |]
                                                  , head <$> [d| !incs      = broadcastInt32X4# ( 8# *# $(inc) )  |]
+                                                 , sigD prologue [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD prologue [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                              $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
+                                                           in case $(varE $ last i) <# $(end) of
+                                                                1# -> $(runCont (pro $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# -> $(varE go) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
+                                                       |]) []]
                                                  , sigD go [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
                                                  , funD go [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
                                                        [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
@@ -86,17 +111,25 @@ for2D'' start' end' inc' start'' end'' inc'' start end inc body
                                                            in case $(varE $ last i) <# $(end) of
                                                                 1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
                                                                 0# ->
-                                                                  case $(varE i'') <# $(end'') of
+                                                                  case $(varE i'') <# ($(end'') -# $(inc'')) of
                                                                     1# -> $(varE go) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
-                                                                    0# -> 
-                                                                      case $(varE i') <# $(end') of
-                                                                        1# -> $(varE go) ($(varE i') +# $(inc')) $(start'') starts starts' $(varE s')
-                                                                        0# -> (# $(varE s'), () #)
+                                                                    0# -> $(varE epilogue) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
                                                        |]) []]
-                                                 ] [| case $(varE go) $(start') $(start'') starts starts' $(s) of
+                                                 , sigD epilogue [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD epilogue [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                              $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
+                                                           in case $(varE $ last i) <# $(end) of
+                                                                1# -> $(runCont (epi $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# -> 
+                                                                  case $(varE i') <# $(end') of
+                                                                    1# -> $(varE prologue) ($(varE i') +# $(inc')) $(start'') starts starts' $(varE s')
+                                                                    0# -> (# $(varE s'), () #)
+                                                       |]) []]
+                                                 ] [| case $(varE prologue) $(start') $(start'') starts starts' $(s) of
                                                      (# $(varP s''), () #) -> $(kont $ varE s'')
                                                    |]
-                                return (j',k,return unitE)
+                                return (j''',k,[| () |])
   where goCall go i' i'' index index' = Accelerate $ \i -> return (i, kont, tupE []) 
           where kont s = cont . const $ [| $(go) $(i') $(i'') ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
                                               $(s) |]
@@ -241,6 +274,46 @@ for2D (xStart, xEnd) xInc (yStart,yEnd) yInc body =
 
 returnAQ = Accelerate $ \i -> do return (i,\s -> cont $ \k -> k s, unitE)
 
+
+ -- !north0 <- VGM.unsafeRead b $ 4*j+1
+ -- !north1 <- VGM.unsafeRead b $ 4*j+2
+ -- !north2 <- VGM.unsafeRead b $ 4*j+3
+ -- let north = packVector(north0,north1,north2,0)
+
+ -- !south1 <- VGM.unsafeRead b $ (4*n*(n `div` 4 - 1))+ 4*j
+ -- !south2 <- VGM.unsafeRead b $ (4*n*(n `div` 4 - 1))+ 4*j+1
+ -- !south3 <- VGM.unsafeRead b $ (4*n*(n `div` 4 - 1))+ 4*j+2
+ -- let south = packVector(0,south1,south2,south3)
+
+packFloats (f1, f2, f3, f4) = Accelerate m 
+  where m i = do let i'  = i+1
+                     var = mkName $ "pack" ++ show i'
+                     exp = varE var
+                 let k = passState $ \e ->
+                           [| let ! $(varP var) = packFloatX4# (# $(f1), $(f2), $(f3), $(f4) #)
+                              in $(e)|]
+                 return (i',k,exp)
+
+readFloatArrayAsFloatNorth x y = do north0 <- x `readFloatArray` [| $(y) +# 1# |]
+                                    north1 <- x `readFloatArray` [| $(y) +# 2# |]
+                                    north2 <- x `readFloatArray` [| $(y) +# 3# |]
+                                    packFloats (north0,north1,north2,[|0.0#|])
+
+readFloatArrayAsFloatSouth x y = do south1 <- x `readFloatArray` y
+                                    south2 <- x `readFloatArray` [| $(y) +# 1# |]
+                                    south3 <- x `readFloatArray` [| $(y) +# 2# |]
+                                    packFloats ([|0.0#|],south1,south2,south3)
+
+readFloatArray x y = Accelerate m 
+  where m i = do let i'  = i+1
+                     var = mkName $ "read" ++ show i'
+                     exp = varE var
+                 s' <- newName "state"
+                 let k = withState (varE s') $ \s -> \e ->
+                           [| case readFloatArray# $(x) $(y) $(s) of
+                                (# $(varP s'), $(varP var)#) -> $(e)|]
+                 return (i',k,exp)
+
 readFloatArrayAsFloatQ x y = Accelerate m 
   where m i = do let i'  = i+1
                      var = mkName $ "read" ++ show i'
@@ -271,3 +344,6 @@ printQ str = Accelerate $ \i ->
 
 withState :: ExpQ -> (ExpQ -> ExpQ -> ExpQ) -> ExpQ -> Cont ExpQ ExpQ
 withState s' f s = cont $ \kont -> f s $ kont s'
+
+passState :: (ExpQ -> ExpQ) -> ExpQ -> Cont ExpQ ExpQ
+passState f s = cont $ \kont -> f $ kont s
