@@ -39,8 +39,9 @@ stencilBench steps size =
                              here  <- floatMutableVector `VGM.unsafeRead` (n*i + j     )
                              west  <- floatMutableVector `VGM.unsafeRead` (n*i + j + 1 )
                              south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + j )
-                             VGM.unsafeWrite floatMutableVector i ((1-4*d) * here  
-                                                                    + d*(  north
+                             VGM.unsafeWrite floatMutableVector (n*i + j) 
+                                                           ((1-4*d) * here  
+                                                                    + d*(   north
                                                                           + east
                                                                           + west
                                                                           + south
@@ -56,31 +57,109 @@ stencilBench steps size =
 
 toInt :: RealFrac a => a -> Int
 toInt = fromIntegral . floor
--- unsafeReadBench8 :: Int -> Int -> IO ()
--- unsafeReadBench8 steps n = 
---                      do !floatMutableVector <- VU.thaw floatVector
---                         forM_ [0..steps] $ \i -> do
---                             forM_ [0..(n `div` 8)-1] $ \i -> do
---                               f <- floatMutableVector `VGM.unsafeRead` (8*i) 
---                               VGM.unsafeWrite floatMutableVector (8*i) (2*f)
---                               f1 <- floatMutableVector `VGM.unsafeRead` (8*i+1) 
---                               VGM.unsafeWrite floatMutableVector (8*i+1) (2*f1)
---                               f2 <- floatMutableVector `VGM.unsafeRead` (8*i+2) 
---                               VGM.unsafeWrite floatMutableVector (8*i+2) (2*f2)
---                               f3 <- floatMutableVector `VGM.unsafeRead` (8*i+3) 
---                               VGM.unsafeWrite floatMutableVector (8*i+3) (2*f3)
---                               f4 <- floatMutableVector `VGM.unsafeRead` (8*i+4) 
---                               VGM.unsafeWrite floatMutableVector (8*i+4) (2*f4)
---                               f5 <- floatMutableVector `VGM.unsafeRead` (8*i+5) 
---                               VGM.unsafeWrite floatMutableVector (8*i+5) (2*f5)
---                               f6 <- floatMutableVector `VGM.unsafeRead` (8*i+6) 
---                               VGM.unsafeWrite floatMutableVector (8*i+6) (2*f6)
---                               f7 <- floatMutableVector `VGM.unsafeRead` (8*i+7) 
---                               VGM.unsafeWrite floatMutableVector (8*i+7) (2*f7)
---     where     floatList :: [Float]
---               !floatList = [0..fromInteger (toInteger $ n-1)]
---               floatVector :: VU.Vector Float
---               !floatVector = VU.fromList floatList
+
+stencilBench8 :: Int -> Int -> IO ()
+stencilBench8 steps size = 
+                    do !floatMutableVector <- VU.thaw floatVector
+                       forM_ [0..steps] $ \_ -> do
+                         forM_ [1..n-2] $ \i -> do
+                           forM_ [1..((n - 1) `div` 8)-1] $ \j -> do
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+0 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+0 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+0     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+0 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+0 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+0) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+1 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+1 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+1     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+1 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+1 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+1) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+2 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+2 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+2     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+2 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+2 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+2) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+3 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+3 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+3     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+3 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+3 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+3) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+4 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+4 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+4     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+4 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+4 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+4) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+5 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+5 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+5     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+5 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+5 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+5) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+6 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+6 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+6     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+6 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+6 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+6) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+                             north <- floatMutableVector `VGM.unsafeRead` (n*(i-1) + 8*j+7 )
+                             east  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+7 - 1 )
+                             here  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+7     )
+                             west  <- floatMutableVector `VGM.unsafeRead` (n*i     + 8*j+7 + 1 )
+                             south <- floatMutableVector `VGM.unsafeRead` (n*(i+1) + 8*j+7 )
+                             VGM.unsafeWrite floatMutableVector (n*i+8*j+7) ((1-4*d) * here  
+                                                                    + d*(  north
+                                                                          + east
+                                                                          + west
+                                                                          + south
+                                                                        ))
+    where floatList :: [Float]
+          !floatList = [0..fromInteger (toInteger $ size-1)]
+          floatVector :: VU.Vector Float
+          !floatVector = VU.fromList floatList
+
+          n :: Int
+          n = toInt . sqrt $ fromIntegral size
+          d = 0.5
 
 generatedStencilBench :: Int -> Int -> IO ()
 generatedStencilBench steps size = do 
@@ -92,8 +171,8 @@ generatedStencilBench steps size = do
               !floatList = [0..fromInteger (toInteger $ size-1)]
               floatVector :: VU.Vector Float
               !floatVector = VU.fromList floatList
-              !(I# n#)     = (toInt . sqrt $ fromIntegral size)
-              !(I# n'#)    = (toInt . sqrt $ fromIntegral size) `div` 4
+              !(I# n#)     = (toInt . sqrt $ fromIntegral size) - 1
+              !(I# n'#)    = (toInt . sqrt $ fromIntegral size) `div` 4 - 1
               !(I# steps#) = steps
               d            = broadcastFloatX4# 0.5#
               go ::MutableByteArray# RealWorld -> State# RealWorld -> (# State# RealWorld, () #)
@@ -101,8 +180,8 @@ generatedStencilBench steps size = do
                        let _rawb   = varE $ mkName "rawb"
                            _d      = varE $ mkName "d"
                        for2D''  [| 0# |] [| steps# |] [| 1# |] 
-                                [| 0# |] [| n'# |]    [| 1# |]  
-                                [| 0# |] [| n# |]     [| 4# |] $ \_ -> \_i -> \_j -> do 
+                                [| 1# |] [| n'# |]    [| 1# |]  
+                                [| 4# |] [| n# |]     [| 4# |] $ \_ -> \_i -> \_j -> do 
                              north  <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
                              east   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) -# 4#   |]
                              here   <- return <$> _rawb `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j)         |]
