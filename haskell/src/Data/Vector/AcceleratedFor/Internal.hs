@@ -61,6 +61,45 @@ triple x y z = do x' <- x
                   z' <- z
                   return (x',y',z')
 
+for2D'' :: ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ
+for2D'' start' end' inc' start'' end'' inc'' start end inc body 
+            = Accelerate $ \j -> 
+                             do let i       = [ mkName $ "i" ++ show (j + k) | k <- [1..8]  ]
+                                    is      = mkName $ "i" ++ show (j + 9)
+                                    is'     = mkName $ "i" ++ show (j + 10)
+                                    i'      = mkName $ "i'" ++ show (j + 11)
+                                    i''     = mkName $ "i''" ++ show (j + 12)
+                                go  <- newName "go"
+                                (j',kont',val) <- unwrap (do forM_ i $ \_i -> body (varE i') (varE i'') $ varE _i
+                                                             goCall (varE go) (varE i') (varE i'') (varE is) (varE is')) $ j+12
+                                let k s = cont $ \kont -> do
+                                            s'  <- newName "state"
+                                            s'' <- newName "state"
+                                            letE [
+                                                   head <$> [d| !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ]) |]
+                                                 , head <$> [d| !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) |]
+                                                 , head <$> [d| !incs      = broadcastInt32X4# ( 8# *# $(inc) )  |]
+                                                 , sigD go [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD go [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                              $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
+                                                           in case $(varE $ last i) <# $(end) of
+                                                                1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# ->
+                                                                  case $(varE i'') <# $(end'') of
+                                                                    1# -> $(varE go) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
+                                                                    0# -> 
+                                                                      case $(varE i') <# $(end') of
+                                                                        1# -> $(varE go) ($(varE i') +# $(inc')) $(start'') starts starts' $(varE s')
+                                                                        0# -> (# $(varE s'), () #)
+                                                       |]) []]
+                                                 ] [| case $(varE go) $(start') $(start'') starts starts' $(s) of
+                                                     (# $(varP s''), () #) -> $(kont $ varE s'')
+                                                   |]
+                                return (j',k,return unitE)
+  where goCall go i' i'' index index' = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| $(go) $(i') $(i'') ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
+                                              $(s) |]
                   
 for1D'' :: ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> (ExpQ -> ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ
 for1D'' start' end' inc'  start end inc body 

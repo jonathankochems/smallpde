@@ -24,10 +24,14 @@ import GHC.Prim
 import Control.Monad.Primitive(primitive,primToIO,internal)
 import GHC.Base (Int(..))
 
+import StencilBench
+
 main = defaultMain [
              bench "normalRead" $ nfIO (normalReadBench n)
            , bench "unsafeRead1" $ nfIO (unsafeReadBench steps n)
            , bench "unsafeRead8" $ nfIO (unsafeReadBench8 steps n)
+           , bench "stencilBench" $ nfIO (stencilBench steps n)
+           , bench "generatedStencilBench" $ nfIO (generatedStencilBench steps n)
            , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
            , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
            , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
