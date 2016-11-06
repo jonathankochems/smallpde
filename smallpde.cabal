@@ -151,6 +151,7 @@ executable fdm-haskell
 library
   -- Modules exported by the library.
   Exposed-Modules:      SmallpdeVector,
+                        SmallpdeSIMD,
                         Data.Vector.Unboxed.SIMD,
                         Data.Vector.Unboxed.SIMD.Internal
                         Data.Vector.AcceleratedFor.Internal

@@ -123,6 +123,15 @@ primMVector((FloatX4), MV_FloatX4)
 primVector((FloatX4), V_FloatX4, MV_FloatX4)
 
 
+{-# INLINE coerceToFloatX4# #-}
+coerceToFloatX4# :: SIMD.FloatX4 -> FloatX4#
+coerceToFloatX4# !x = x#
+    where !(FloatX4# x#) = unsafeCoerce x
+
+{-# INLINE coerceFromFloatX4# #-}
+coerceFromFloatX4# :: FloatX4# -> SIMD.FloatX4
+coerceFromFloatX4# !x# = coerceToFloatX4 (FloatX4# x#)
+
 {-# INLINE coerceToInternalFloatX4 #-}
 coerceToInternalFloatX4 :: SIMD.FloatX4 -> FloatX4
 coerceToInternalFloatX4 !x = unsafeCoerce x

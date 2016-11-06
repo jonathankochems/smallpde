@@ -15,11 +15,13 @@ module Data.Vector.AcceleratedFor.Internal where
 import Language.Haskell.TH
 import Language.Haskell.TH.Lib
 import GHC.Prim
+import GHC.Int
 
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Control.Monad.Primitive
 
+import qualified Data.Primitive.ByteArray as ByteArray
 
 newtype Accelerate a = Accelerate { unwrap :: Integer ->  Q (Integer, ExpQ -> Cont ExpQ ExpQ, a) }
 
@@ -61,16 +63,117 @@ triple x y z = do x' <- x
                   z' <- z
                   return (x',y',z')
 
+for2D''' :: ExpQ -> ExpQ -> ExpQ -> 
+           ExpQ -> ExpQ -> ExpQ -> 
+           ExpQ -> ExpQ -> ExpQ -> 
+           ExpQ -> ExpQ -> 
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+                Accelerate ExpQ
+for2D''' start' end' inc' 
+        start'' end'' inc'' 
+        start end inc 
+        arraya arrayb
+          prologueBody 
+          body 
+          epilogueBody
+            = Accelerate $ \j -> 
+                             do let i       = [ mkName $ "i" ++ show (j + k) | k <- [1..4]  ]
+                                    is      = mkName $ "i"   ++ show (j + 5)
+                                    i'      = mkName $ "i'"  ++ show (j + 6)
+                                    i''     = mkName $ "i''" ++ show (j + 7)
+                                    a       = mkName $ "a"   ++ show (j + 8)
+                                    b       = mkName $ "b"   ++ show (j + 9)
+                                go        <- newName "go"
+                                prologue  <- newName "prologue"
+                                epilogue  <- newName "epilogue"
+                                (j'', pro,_)     <- unwrap (do forM_ i $ \_i -> prologueBody (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE prologue) (varE a) (varE b) (varE i') (varE i'') (varE is) ) $ j+9
+                                (j0, pro0,_)     <- unwrap ( do prologueBody (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (0# *# $(inc)) |]
+                                                                prologueBody (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (1# *# $(inc)) |]
+                                                                goCall' (varE go) (varE a) (varE b) (varE i') [|$(varE i'') +# $(inc')|] [|starts|] ) j''
+                                
+                                (j',  kont',val) <- unwrap (do forM_ i $ \_i -> body (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE go) (varE a) (varE b) (varE i') (varE i'') (varE is) ) j0
+                                (j1, body0,_)    <- unwrap ( do body (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (0# *# $(inc)) |]
+                                                                body (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (1# *# $(inc)) |]
+                                                                 ) j''
+                                (j2, epi0,_)    <- unwrap ( do epilogueBody (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (0# *# $(inc)) |]
+                                                               epilogueBody (varE a) (varE b) (varE i') (varE i'') [| $(varE $ head i) +# (1# *# $(inc)) |]
+                                                                 ) j1
+                                (j''', epi,_)    <- unwrap (do forM_ i $ \_i -> epilogueBody (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE epilogue) (varE a) (varE b) (varE i') (varE i'') (varE is)) j2
+                                let k s = cont $ \kont -> do
+                                            s'  <- newName "state"
+                                            s'' <- newName "state"
+                                            letE [
+                                                   head <$> [d| !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ]) |]
+                                                 , head <$> [d| !incs      = broadcastInt32X4# ( 4# *# $(inc) )  |]
+                                                 , sigD prologue [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4#  
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD prologue [clause [varP a, varP b, varP i', varP i'', varP is, varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                           in case $(varE $ last i) +# $(inc) <# $(end) of
+                                                                1# -> $(runCont (pro $ varE s')  $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# -> $(runCont (pro0 $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                 -- $(varE go) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts $(varE s')
+                                                       |]) []]
+                                                 , sigD go [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4#  
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD go [clause [varP a, varP b, varP i', varP i'', varP is, varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                           in case $(varE $ last i) +# $(inc) <# $(end) of
+                                                                1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# -> $(runCont (body0 $ varE s') $ \s''' -> [| 
+                                                                  case $(varE i'') <# ($(end'') -# (2# *# $(inc''))) of
+                                                                    1# -> $(varE go) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts $(s''')
+                                                                    0# -> $(varE epilogue) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts $(s''')
+                                                                  |])
+                                                       |]) []]
+                                                 , sigD epilogue [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4# 
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD epilogue [clause [varP a, varP b, varP i', varP i'', varP is, varP s'] (normalB $
+                                                       [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
+                                                           in case $(varE $ last i) +# $(inc) <# $(end) of
+                                                                1# -> $(runCont (epi $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
+                                                                0# -> $(runCont (epi0 $ varE s') $ \s''' -> [|
+                                                                  case $(varE i') +# $(inc') <# $(end') of
+                                                                    1# -> $(varE prologue) $(varE b) $(varE a) ($(varE i') +# $(inc')) $(start'') starts $(varE s')
+                                                                    0# -> (# $(varE s'), () #)
+                                                                    |])
+                                                       |]) []]
+                                                 ] [| case $(varE prologue) $(arraya) $(arrayb) $(start') $(start'') starts $(s) of
+                                                     (# $(varP s''), () #) -> $(kont $ varE s'')
+                                                   |]
+                                return (j''',k,[| () |])
+  where goCall go a b i' i'' index = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| $(go) $(a) $(b) $(i') $(i'') ($(index) `plusInt32X4#` incs) $(s) |]
+        goCall' go a b i' i'' index = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| $(go) $(a) $(b) $(i') $(i'') $(index) $(s) |]
+ 
+
 for2D'' :: ExpQ -> ExpQ -> ExpQ -> 
            ExpQ -> ExpQ -> ExpQ -> 
            ExpQ -> ExpQ -> ExpQ -> 
-             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
-             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
-             (ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+           ExpQ -> ExpQ -> 
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
+             (ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> Accelerate ExpQ) ->
                 Accelerate ExpQ
 for2D'' start' end' inc' 
         start'' end'' inc'' 
         start end inc 
+        arraya arrayb
           prologueBody 
           body 
           epilogueBody
@@ -80,15 +183,17 @@ for2D'' start' end' inc'
                                     is'     = mkName $ "i" ++ show (j + 10)
                                     i'      = mkName $ "i'" ++ show (j + 11)
                                     i''     = mkName $ "i''" ++ show (j + 12)
+                                    a       = mkName $ "a" ++ show (j + 13)
+                                    b       = mkName $ "b" ++ show (j + 14)
                                 go        <- newName "go"
                                 prologue  <- newName "prologue"
                                 epilogue  <- newName "epilogue"
-                                (j'', pro,_)     <- unwrap (do forM_ i $ \_i -> prologueBody (varE i') (varE i'') $ varE _i
-                                                               goCall (varE prologue) (varE i') (varE i'') (varE is) (varE is')) $ j+12
-                                (j',  kont',val) <- unwrap (do forM_ i $ \_i -> body (varE i') (varE i'') $ varE _i
-                                                               goCall (varE go) (varE i') (varE i'') (varE is) (varE is')) j''
-                                (j''', epi,_)    <- unwrap (do forM_ i $ \_i -> epilogueBody (varE i') (varE i'') $ varE _i
-                                                               goCall (varE epilogue) (varE i') (varE i'') (varE is) (varE is')) $ j'
+                                (j'', pro,_)     <- unwrap (do forM_ i $ \_i -> prologueBody (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE prologue) (varE a) (varE b) (varE i') (varE i'') (varE is) (varE is')) $ j+14
+                                (j',  kont',val) <- unwrap (do forM_ i $ \_i -> body (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE go) (varE a) (varE b) (varE i') (varE i'') (varE is) (varE is')) j''
+                                (j''', epi,_)    <- unwrap (do forM_ i $ \_i -> epilogueBody (varE a) (varE b) (varE i') (varE i'') $ varE _i
+                                                               goCall (varE epilogue) (varE a) (varE b) (varE i') (varE i'') (varE is) (varE is')) $ j'
                                 let k s = cont $ \kont -> do
                                             s'  <- newName "state"
                                             s'' <- newName "state"
@@ -96,42 +201,54 @@ for2D'' start' end' inc'
                                                    head <$> [d| !starts    = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|0#|], [|1#|], [|2#|], [|3#|]] ]) |]
                                                  , head <$> [d| !starts'   = packInt32X4# $(unboxedTupE [ [| $(start) +# $(n) *# $(inc) |] | n <- [[|4#|], [|5#|], [|6#|], [|7#|]] ]) |]
                                                  , head <$> [d| !incs      = broadcastInt32X4# ( 8# *# $(inc) )  |]
-                                                 , sigD prologue [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
-                                                 , funD prologue [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                 , sigD prologue [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4# -> Int32X4# 
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD prologue [clause [varP a, varP b, varP i', varP i'', varP is, varP is', varP s'] (normalB $
                                                        [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
                                                               $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
                                                            in case $(varE $ last i) <# $(end) of
                                                                 1# -> $(runCont (pro $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
-                                                                0# -> $(varE go) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
+                                                                0# -> $(varE go) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
                                                        |]) []]
-                                                 , sigD go [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
-                                                 , funD go [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                 , sigD go [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4# -> Int32X4# 
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD go [clause [varP a, varP b, varP i', varP i'', varP is, varP is', varP s'] (normalB $
                                                        [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
                                                               $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
                                                            in case $(varE $ last i) <# $(end) of
                                                                 1# -> $(runCont (kont' $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
                                                                 0# ->
                                                                   case $(varE i'') <# ($(end'') -# $(inc'')) of
-                                                                    1# -> $(varE go) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
-                                                                    0# -> $(varE epilogue) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
+                                                                    1# -> $(varE go) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
+                                                                    0# -> $(varE epilogue) $(varE a) $(varE b) $(varE i') ($(varE i'') +# $(inc')) starts starts' $(varE s')
                                                        |]) []]
-                                                 , sigD epilogue [t| Int# -> Int# -> Int32X4# -> Int32X4# -> State# RealWorld -> (# State# RealWorld, () #) |]
-                                                 , funD epilogue [clause [varP i', varP i'', varP is, varP is', varP s'] (normalB $
+                                                 , sigD epilogue [t| ByteArray.MutableByteArray# RealWorld 
+                                                                       -> ByteArray.MutableByteArray# RealWorld 
+                                                                       -> Int# -> Int# 
+                                                                       -> Int32X4# -> Int32X4# 
+                                                                       -> State# RealWorld -> (# State# RealWorld, () #) |]
+                                                 , funD epilogue [clause [varP a, varP b, varP i', varP i'', varP is, varP is', varP s'] (normalB $
                                                        [| let $(unboxedTupP . map varP $ take 4 i)           = unpackInt32X4# $(varE is ) 
                                                               $(unboxedTupP . map varP $ take 4 $ drop 4 i ) = unpackInt32X4# $(varE is') 
                                                            in case $(varE $ last i) <# $(end) of
                                                                 1# -> $(runCont (epi $ varE s') $ \s''' -> [| (# $(s'''), ()#) |])
                                                                 0# -> 
                                                                   case $(varE i') <# $(end') of
-                                                                    1# -> $(varE prologue) ($(varE i') +# $(inc')) $(start'') starts starts' $(varE s')
+                                                                    1# -> $(varE prologue) $(varE b) $(varE a) ($(varE i') +# $(inc')) $(start'') starts starts' $(varE s')
                                                                     0# -> (# $(varE s'), () #)
                                                        |]) []]
-                                                 ] [| case $(varE prologue) $(start') $(start'') starts starts' $(s) of
+                                                 ] [| case $(varE prologue) $(arraya) $(arrayb) $(start') $(start'') starts starts' $(s) of
                                                      (# $(varP s''), () #) -> $(kont $ varE s'')
                                                    |]
                                 return (j''',k,[| () |])
-  where goCall go i' i'' index index' = Accelerate $ \i -> return (i, kont, tupE []) 
-          where kont s = cont . const $ [| $(go) $(i') $(i'') ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
+  where goCall go a b i' i'' index index' = Accelerate $ \i -> return (i, kont, tupE []) 
+          where kont s = cont . const $ [| $(go) $(a) $(b) $(i') $(i'') ($(index) `plusInt32X4#` incs)   ($(index') `plusInt32X4#` incs) 
                                               $(s) |]
                   
 for1D'' :: ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> ExpQ -> (ExpQ -> ExpQ -> Accelerate ExpQ) -> Accelerate ExpQ

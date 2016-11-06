@@ -3,5 +3,6 @@
 module Main where
 
 import qualified SmallpdeVector
+import qualified SmallpdeSIMD
 
-main = SmallpdeVector.main
+main = SmallpdeSIMD.main
