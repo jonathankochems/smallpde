@@ -24,6 +24,8 @@ import GHC.Prim
 import Control.Monad.Primitive(primitive,primToIO,internal)
 import GHC.Base (Int(..))
 
+import SolverCodeGen
+
 import qualified Data.Primitive.ByteArray as ByteArray
 
 assert True  = return ()
@@ -293,12 +295,16 @@ generatedStencilBench4 steps size = do
               !floatVector = VU.fromList floatList
               floatVector' :: VU.Vector Float
               !floatVector' = VU.fromList floatList
-              !(I# n#)     = (toInt . sqrt $ fromIntegral size)
-              !(I# n'#)    = (toInt . sqrt $ fromIntegral size) `div` 4 - 1
+              n            = (toInt . sqrt $ fromIntegral size)
+              !(I# n#)     = n
+              !(I# n'#)    = n `div` 4
               !(I# steps#) = steps
+              !(I# nborder#) = 4*n*(n `div` 4 - 1) 
               d            = broadcastFloatX4# 0.5#
+              d#           = broadcastFloatX4# 0.5#
               go ::MutableByteArray# RealWorld -> MutableByteArray# RealWorld -> State# RealWorld -> (# State# RealWorld, () #)
-              go rawa rawb s = $(AFI.generate $ do 
+              go rawa rawb s = $(AFI.generate internalSolve) 
+                      {- $ do 
                        let _d      = varE $ mkName "d"
                        for2D''' [| 0# |] [| steps# |] [| 1# |] 
                                 [| 0# |] [| n'# |]    [| 1# |]  
@@ -352,7 +358,8 @@ generatedStencilBench4 steps size = do
                                                                            )
                                                     ) |] 
                              return [| () |])
-                            )
+                            )-}
+
 generatedStencilBench8 :: Int -> Int -> IO ()
 generatedStencilBench8 steps size = do 
                               !floatMutableVector <- VU.thaw floatVector
@@ -430,5 +437,5 @@ generatedStencilBench8 steps size = do
                                                                            )
                                                     ) |] 
                              return [| () |])
-                            )
+                            ) 
                    
