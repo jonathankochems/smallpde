@@ -28,6 +28,9 @@ import SolverCodeGen
 
 import qualified Data.Primitive.ByteArray as ByteArray
 
+import Foreign
+foreign import ccall safe "main.h" main :: IO Int
+
 assert True  = return ()
 assert False = error "assertion failure"
 

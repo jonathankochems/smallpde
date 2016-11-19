@@ -16,6 +16,7 @@ import Debug.Trace(traceShow)
 import Numeric (showEFloat)
 import qualified Data.Vector.Unboxed.SIMD as VUS
 import qualified Data.Vector.Unboxed.SIMD.Internal as VUSI
+import qualified Data.Vector.Primitive
 
 import Data.Primitive.SIMD (unpackVector,packVector, FloatX4, unsafeInsertVector)
 
@@ -28,84 +29,20 @@ import qualified Data.Vector.AcceleratedFor.Internal as AFI
 import Data.Vector.AcceleratedFor.Internal (for1D,for2D,for2DSkip,for1D',for1D'',for2D'',for2D''',printQ,Accelerate(..))
 import GHC.Prim
 import Control.Monad.Primitive(primitive,primToIO,internal)
-import GHC.Base (Int(..))
+import GHC.Base (Int(..), Float (..))
+
+import qualified Data.Primitive.ByteArray as ByteArray
+import Data.ByteString.Char8(pack)
+import Data.ByteString.Builder
+import Data.Monoid
+import System.IO(stdout)
 
 import qualified Data.Primitive.ByteArray as ByteArray
 import VectorInst
 import SolverCodeGen
---import System.IO.Unsafe(unsafePerformIO)
-
---import Foreign
---foreign import ccall unsafe "Debug.h" perf_marker :: IO ()
-
---{-# INLINE unsafePurePerfMarker#-}
---unsafePurePerfMarker :: a -> a
---unsafePurePerfMarker x = (unsafePerformIO perf_marker) `seq` x
-
-
---{-# INLINE fourIter #-} 
---fourIter !n !d !a !b !i !j  = $(stencil 4) pureStencil' n d a b i j 
---
---{-# INLINE eightIter #-} 
---eightIter !n !d !a !b !i !j = $(stencil 8) pureStencil' n d a b i j 
-
---{-# INLINE sixtIter #-} 
---sixtIter !n !d !a !b !i !j = $(stencil 16) pureStencil' n d a b i j 
 
 when True  m = m
 when False _ = return ()
-
-
-----foldr            :: (a -> b -> b) -> b -> [a] -> b
----- foldr _ z []     =  z
----- foldr f z (x:xs) =  f x (foldr f z xs)
---{-# INLINE [0] foldr #-}
----- Inline only in the final stage, after the foldr/cons rule has had a chance
----- Also note that we inline it when it has *two* parameters, which are the
----- ones we are keen about specialising!
---foldr k z = go
---          where
---            --go :: [a] -> b
---            go []     = z
---            go (y:ys) = unsafePurePerfMarker ( y `k` go ys )
---
---
---mapM_ :: (a -> IO b) -> [a] -> IO ()
---mapM_ f= foldr ((>>) . f') (return ())
---  where {-# INLINE f' #-}
---        f' x = do perf_marker
---                  f x
----- | 'forM_' is 'mapM_' with its arguments flipped. For a version that
----- doesn't ignore the results see 'Data.Traversable.forM'.
-----
----- As of base 4.8.0.0, 'forM_' is just 'for_', specialized to 'Monad'.
---forM_ :: [a] -> (a -> IO b) -> IO ()
---{-# INLINE forM_ #-}
---forM_ = flip mapM_
---
----- | 'forM' is 'mapM' with its arguments flipped. For a version that
----- ignores the results see 'Data.Foldable.forM_'.
---forM ::  [a] -> (a -> IO b) -> IO [b]
---{-# INLINE forM #-}
---forM = flip mapM
---
---{-# INLINE mapM #-} -- so that traverse can fuse
---mapM ::  (a -> IO b) -> [a] -> IO [b]
---mapM f = foldr cons_f (pure [])
---  where {-# INLINE cons_f #-}
---        cons_f x ys = (:) <$> f' x <*> ys
---        {-# INLINE f' #-}
---        f' x = do perf_marker
---                  f x
-
-{-# INLINE pureStencil' #-}
---pureStencil' :: Float -> Float -> Float -> Float -> Float -> Float -> Float
-pureStencil' !d !here !east !north !west !south = 
-  (1-4*d) * here + d*( north+east+west+south )
-    --where v :: FloatX4 
-          --v = packVector (north,east,west,south)
-          --s :: Float
-          --s = sumVector $ v + v 
 
 {-
     The Transformation:
@@ -153,7 +90,7 @@ indexTransformReverse width !i !j
           !i'            = i+sector*n  
 
 {-# INLINE solve #-}
-solve :: Int -> Int -> IO (VU.MVector (PrimState IO) Float)
+solve :: Int -> Int -> IO (ByteArray.MutableByteArray (PrimState IO))
 solve !n !iterations = 
         do let steps :: Int
                !steps = iterations
@@ -169,20 +106,20 @@ solve !n !iterations =
                !n' = fromInteger $ toInteger n
                !halfn = n `div` 2
                !nCeil = 4*((n+3) `div` 4)
-               !a' = VU.create (do !a <- VGM.new (nCeil*nCeil); VGM.set a 0; return a)
-               !b' = VU.create (do !b <- VGM.new (nCeil*nCeil); VGM.set b 0; return b)
-           !a <- VU.thaw a'
-           !b <- VU.thaw b'
-           !() <- VGM.unsafeWrite a (indexTransform n halfn halfn) 1.0 
-           -- print (d,nCeil*nCeil)
+           a <- ByteArray.newAlignedPinnedByteArray (n*n*4) 64
+           ByteArray.setByteArray a 0 (n*n `div` 4) (0 :: FloatX4) 
+           ByteArray.writeByteArray a (indexTransform n halfn halfn) (1.0 :: Float)
+           b <- ByteArray.newAlignedPinnedByteArray (n*n*4) 64
            !() <- timeloop steps n d d' a b
-           return $ if steps `mod` 2 == 0 then a else b
+           let arr | steps `mod` 2 == 0 = a
+                   | otherwise          = b
+           
+           return arr
   where {-# INLINE timeloop #-}
-        timeloop :: Int -> Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
-        timeloop !steps !n !d !d' !a !b = do 
-                              let rawa = VUSI.convertToRawVector a
-                                  rawb = VUSI.convertToRawVector b
-                              primitive $ go rawa rawb
+        -- timeloop :: Int -> Int -> FloatX4 -> Float -> VU.MVector (PrimState IO) Float -> VU.MVector (PrimState IO) Float -> IO ()
+        timeloop :: Int -> Int -> FloatX4 -> Float -> ByteArray.MutableByteArray (PrimState IO) -> ByteArray.MutableByteArray (PrimState IO) -> IO ()
+        timeloop !steps !n !d !d' (ByteArray.MutableByteArray a#) (ByteArray.MutableByteArray b#) = do 
+                              primitive $ go a# b#
          where !(I# n#)       = n 
                !(I# n'#)      = n `div` 4
                !(I# nborder#) = 4*n*(n `div` 4 - 1) 
@@ -196,7 +133,7 @@ printArray n a = go 0 0 (n-1) ""
           go !k !i !j !line | k >= 4 = do putStrLn ""
                                           putStrLn ""
                             | i >= n `div` 4 = go (k+1) 0 (n-1) ""
-                            | j >= 0 = do !num <- VGM.unsafeRead a $ 4*n*i+4*j+k
+                            | j >= 0 = do !(num :: Float) <- ByteArray.readByteArray a $ 4*n*i+4*j+k
                                           go k i (j-1) $! (showEFloat (Just 5) num " "++line)
                             | j < 0  = do putStrLn line
                                           go k (i+1) (n-1) ""
@@ -211,7 +148,38 @@ printArrayRaw n a = do forM_ [0..n-1] (\(!i) -> do
                        putStrLn ""
                        putStrLn ""
 
+printArrayhPutX4 :: Int -> ByteArray.MutableByteArray RealWorld -> IO ()
+printArrayhPutX4 n (ByteArray.MutableByteArray a) = 
+                             do builder <- build n a
+                                hPutBuilder stdout builder
+   where fastRead arr# (I# i#) = primitive go
+            where go s = case readFloatArrayAsFloatX4# arr# i# s of
+                                (# s', fs #) -> 
+                                  case unpackFloatX4# fs of
+                                  (# f1, f2, f3, f4 #) -> (# s', ( F# f1
+                                                                 , F# f2
+                                                                 , F# f3
+                                                                 , F# f4
+                                                                 ) #)
+         build :: Int -> ByteArray.MutableByteArray# RealWorld -> IO (Builder)
+         build n a = go 0 0 mempty mempty mempty mempty 
+             where !slice = (n+3) `div` 4
+                   go !i !j !b1 !b2 !b3 !b4 | j < 4*n   = do !(!f1',!f2',!f3',!f4') <- a `fastRead` (4*n*i+j)
+                                                             let !f1 = string7 $ showEFloat (Just 5) f1' " "
+                                                                 !f2 = string7 $ showEFloat (Just 5) f2' " "
+                                                                 !f3 = string7 $ showEFloat (Just 5) f3' " "
+                                                                 !f4 = string7 $ showEFloat (Just 5) f4' " "
+                                                             go i (j+4) (b1 <> f1)
+                                                                        (b2 <> f2)
+                                                                        (b3 <> f3)
+                                                                        (b4 <> f4)
+                                            | i < slice-1 = go (i+1) 0 (b1 <> charUtf8 '\n')
+                                                                       (b2 <> charUtf8 '\n')
+                                                                       (b3 <> charUtf8 '\n')
+                                                                       (b4 <> charUtf8 '\n')
+                                            | otherwise = return $ b1 <> b2 <> b3 <> b4
+
 main = do let n :: Int
               !n = 256
           !a <- solve n $ 5*1024
-          printArray n a
+          printArrayhPutX4 n a

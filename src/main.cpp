@@ -5,10 +5,10 @@
 int main() {
   // set up params
   Params p;
-  //p.N  = 256;
-  p.N  = 16;
-  //p.timeSteps = 1024*5;
-  p.timeSteps = 16;
+  p.N  = 256;
+  // p.N  = 16;
+  p.timeSteps = 1024*5;
+  //p.timeSteps = 16;
   p.dx = 1./(p.N-1);
   p.dt = p.dx*p.dx/4 / 2; // stable/2  for explicit Euler
   Field f(p.N*p.N);

@@ -24,23 +24,48 @@ import GHC.Prim
 import Control.Monad.Primitive(primitive,primToIO,internal)
 import GHC.Base (Int(..))
 
-import StencilBench
+import qualified SmallpdeVector
+import qualified SmallpdeSIMD
 
-main = defaultMain [
-             bench "normalRead" $ nfIO (normalReadBench n)
-           , bench "unsafeRead1" $ nfIO (unsafeReadBench steps n)
-           , bench "unsafeRead8" $ nfIO (unsafeReadBench8 steps n)
-           , bench "stencilBench1" $ nfIO (stencilBench steps n)
-           , bench "stencilBench8" $ nfIO (stencilBench8 steps n)
-           , bench "generatedStencilBench4" $ nfIO (generatedStencilBench4 steps n)
-           , bench "generatedStencilBench8" $ nfIO (generatedStencilBench8 steps n)
-           , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
-           , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
-           , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
-           , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench steps n)
---           , bench "rawVectorisedRead" $ nfIO (rawVectorisedReadBench n)
-        ]
+import StencilBench hiding (main)
+import qualified StencilBench 
+
+import qualified ArrayCreateBench
+import qualified PrintArrayBench
+
+
+main = do !(floatMutableVector :: VU.MVector RealWorld Float)  <- VU.thaw floatVector
+          defaultMain [
+                 bench "normalRead" $ nfIO (normalReadBench n)
+               , bench "unsafeRead1" $ nfIO (unsafeReadBench steps n)
+               , bench "unsafeRead8" $ nfIO (unsafeReadBench8 steps n)
+               , bench "stencilBench1" $ nfIO (stencilBench steps n)
+               , bench "stencilBench8" $ nfIO (stencilBench8 steps n)
+               , bench "generatedStencilBench4" $ nfIO (generatedStencilBench4 steps n)
+               , bench "generatedStencilBench8" $ nfIO (generatedStencilBench8 steps n)
+               , bench "vectorisedRead" $ nfIO (vectorisedReadBench n)
+               , bench "unsafeVectorisedRead" $ nfIO (unsafeVectorisedReadBench n)
+               , bench "veryunsafeVectorisedRead" $ nfIO (veryunsafeVectorisedReadBench n)
+               , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench steps n)
+               , bench "solverA"  $ (nfIO SmallpdeVector.main)
+               , bench "solverB"  $ (nfIO SmallpdeSIMD.main)
+               --, bench "solverC"  $ (nfIO StencilBench.main)
+               , bench "createArrayBench"     $ (nfIO $ ArrayCreateBench.createArrayBench n)
+               , bench "createArrayUnsafeBench" $ (nfIO $ ArrayCreateBench.createArrayUnsafeBench n)
+               , bench "createByteArrayBench" $ (nfIO $ ArrayCreateBench.createByteArrayBench n)
+               , bench "printArrayBench"     $ (nfIO $ PrintArrayBench.printArrayBench n floatMutableVector)
+               , bench "printArrayRawBench"  $ (nfIO $ PrintArrayBench.printArrayRawBench n floatMutableVector)
+               , bench "printArrayhPutBench" $ (nfIO $ PrintArrayBench.printArrayhPutBench n floatMutableVector)
+               , bench "printArrayhPutX4Bench" $ (nfIO $ PrintArrayBench.printArrayhPutX4Bench n floatMutableVector)
+               , bench "generatedVectorisedRead"  $ nfIO (generatedVectorisedReadBench steps n)
+               --           , bench "rawVectorisedRead" $ nfIO (rawVectorisedReadBench n)
+            ]
   where n     =  256*256
+        size  = n
+        floatList :: [Float]
+        !floatList = [0..fromInteger (toInteger $ size-1)]
+        floatVector :: VU.Vector Float
+        !floatVector = VU.fromList floatList       
         steps =  5*1024
 
 assert True  = return ()

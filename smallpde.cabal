@@ -92,6 +92,7 @@ executable vectorBench
   build-depends:       base >=4 && <5,
                        template-haskell >= 2.11,
                        deepseq,
+                       bytestring >= 0.10,
                        vector,
                        primitive,
                        primitive-simd,
@@ -164,10 +165,17 @@ library
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   C-sources: haskell/src/Debug.c
+             src/main.cpp
+             src/fdm.cpp
   
+  include-dirs: /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/usr/include
+                include/
+  cc-options: -Wall -march=native -std=c++11 -O3 -g -fno-omit-frame-pointer  -ffast-math
+
   -- Other library packages from which modules are imported.
   build-depends:       base >=4 && <5,
                        template-haskell >= 2.11,
+                       bytestring >= 0.10,
                        deepseq,
                        vector,
                        primitive,

@@ -2,7 +2,8 @@ all: main fdm.png fdm_hs.png
 
 main: include/*hpp src/*cpp
 	#g++ -Wall -fopenmp -march=native -std=c++11 -O3 -Iinclude -g -fno-omit-frame-pointer src/*cpp -ffast-math -o main
-	g++ -Wall -march=native -std=c++11 -O3 -Iinclude -g -fno-omit-frame-pointer src/*cpp -ffast-math -o main
+	#g++ -Wall -march=native -std=c++11 -O3 -Iinclude -g -fno-omit-frame-pointer src/*cpp -ffast-math -o main
+	~/.llvm/bin/clang++ -Wall -march=native -std=c++11 -O3 -Iinclude -I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/usr/include -g -fno-omit-frame-pointer src/*cpp -ffast-math -o main
 
 DATA:=$(shell mktemp)
 fdm.png: main
@@ -16,6 +17,10 @@ fdm_hs.png: haskell/test.exe
 fdm_vector.png: haskell/test-vector-prof.exe
 	$(shell haskell/test-vector-prof.exe > $(DATA))
 	$(shell python -c 'import numpy as np; from matplotlib import pyplot; aa = np.loadtxt("$(DATA)"); pyplot.imsave("fdm_vector.png", aa)')
+
+fdm_vector1.png: 
+	$(shell dist/build/fdm-haskell/fdm-haskell > $(DATA))
+	$(shell python -c 'import numpy as np; from matplotlib import pyplot; aa = np.loadtxt("$(DATA)"); pyplot.imsave("fdm_vector1.png", aa)')
 # syntax-hack:'
 
 
