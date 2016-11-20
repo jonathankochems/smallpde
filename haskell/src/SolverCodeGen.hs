@@ -48,7 +48,7 @@ internalSolve = do
                        --                ) |]
                        for2D''' [| 0# |] [| steps# |]   [| 1# |] 
                                 [| 0# |] [| n'# |]      [| 1# |]  
-                                [| 4# |] [| 4# *# n# |] [| 4# |]
+                                [| 4# |] [| 4# *# n# |] [| 16# |]
                                 [| rawa |] [| rawb |] 
                             ( \_a -> \_b -> \_ -> \_i -> \_j -> do 
                              north  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) |]
@@ -88,11 +88,20 @@ internalSolve = do
                                                  |] 
                              return [| () |])
                             ( \_a -> \_b -> \_ -> \_i -> \_j -> do 
-                             north  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) |]
+                             north0  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) |]
+                             north1  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) +# 4#|]
+                             north2  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) +# 8#|]
+                             north3  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) +# 1#) +# $(_j) +# 12#|]
                              east   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) -# 4#   |]
                              here   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j)         |]
-                             west   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 4#   |]
-                             south  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
+                             west0   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 4#   |]
+                             west1   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 8#   |]
+                             west2   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 12#   |]
+                             west3   <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# $(_i) +# $(_j) +# 16#   |]
+                             south0  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) |]
+                             south1  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) +# 4#|]
+                             south2  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) +# 8#|]
+                             south3  <- return <$> _a `AFI.readFloatArrayAsFloatQ` [| 4# *# n# *# ($(_i) -# 1#) +# $(_j) +# 12#|]
                              -- printQ [| show ( "body"
                              --                , I# $(_i), I# $(_j), I# (4# *# n# *# $(_i) +# $(_j))
                              --                , VUSI.coerceFromFloatX4# $(north)
@@ -116,10 +125,43 @@ internalSolve = do
                                                         ( (broadcastFloatX4# 4.0#) `timesFloatX4#` $(_d)))
                                                     `timesFloatX4#` $(here))  
                                                     `plusFloatX4#` 
-                                                    ($(_d)  `timesFloatX4#` (  $(north)
+                                                    ($(_d)  `timesFloatX4#` (  $(north0)
                                                               `plusFloatX4#`  $(east)
-                                                              `plusFloatX4#`  $(west)
-                                                              `plusFloatX4#`  $(south)
+                                                              `plusFloatX4#`  $(west0)
+                                                              `plusFloatX4#`  $(south0)
+                                                                           )
+                                                    ) |] 
+                             AFI.writeFloatArrayAsFloatQ _b [| 4# *# n# *# $(_i) +# $(_j) +# 4#|]  
+                                                 [| (( (broadcastFloatX4# 1.0#) `minusFloatX4#` 
+                                                        ( (broadcastFloatX4# 4.0#) `timesFloatX4#` $(_d)))
+                                                    `timesFloatX4#` $(west0))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d)  `timesFloatX4#` (  $(north1)
+                                                              `plusFloatX4#`  $(here)
+                                                              `plusFloatX4#`  $(west1)
+                                                              `plusFloatX4#`  $(south1)
+                                                                           )
+                                                    ) |] 
+                             AFI.writeFloatArrayAsFloatQ _b [| 4# *# n# *# $(_i) +# $(_j) +# 8# |]  
+                                                 [| (( (broadcastFloatX4# 1.0#) `minusFloatX4#` 
+                                                        ( (broadcastFloatX4# 4.0#) `timesFloatX4#` $(_d)))
+                                                    `timesFloatX4#` $(west1))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d)  `timesFloatX4#` (  $(north2)
+                                                              `plusFloatX4#`  $(west0)
+                                                              `plusFloatX4#`  $(west2)
+                                                              `plusFloatX4#`  $(south2)
+                                                                           )
+                                                    ) |] 
+                             AFI.writeFloatArrayAsFloatQ _b [| 4# *# n# *# $(_i) +# $(_j) +# 12# |]  
+                                                 [| (( (broadcastFloatX4# 1.0#) `minusFloatX4#` 
+                                                        ( (broadcastFloatX4# 4.0#) `timesFloatX4#` $(_d)))
+                                                    `timesFloatX4#` $(west2))  
+                                                    `plusFloatX4#` 
+                                                    ($(_d)  `timesFloatX4#` (  $(north3)
+                                                              `plusFloatX4#`  $(west1)
+                                                              `plusFloatX4#`  $(west3)
+                                                              `plusFloatX4#`  $(south3)
                                                                            )
                                                     ) |] 
                              return [| () |])
